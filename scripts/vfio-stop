@@ -1,0 +1,73 @@
+#!/bin/bash
+#############################################################################
+##                         VFIO VM Teardown Script                        ##
+#############################################################################
+## Restores the host after GPU passthrough VM shutdown
+
+set -euo pipefail
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Source library functions
+source "$PROJECT_ROOT/lib/vfio-common.sh"
+
+# Load configuration
+CONFIG_FILE="$PROJECT_ROOT/config/vfio.conf"
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+fi
+
+#############################################################################
+## Main Teardown Sequence
+#############################################################################
+
+main() {
+    log_info "=========================================="
+    log_info "Starting VFIO teardown"
+    log_info "=========================================="
+
+    # Unpin host CPUs
+    if [[ -n "${ALL_CPUS:-}" ]]; then
+        unpin_host_cpus "$ALL_CPUS"
+    fi
+
+    # Stop nosleep service
+    systemctl stop "libvirt-nosleep@${VM_NAME:-win11}" 2>/dev/null || true
+
+    # Unload VFIO drivers
+    unload_vfio_drivers
+
+    # Load GPU drivers
+    load_gpu_drivers
+
+    # Rebind VT consoles
+    rebind_vtconsoles
+
+    # Start display manager
+    log_info "Starting display manager"
+    start_display_manager
+
+    # Deallocate hugepages
+    if [[ "${ENABLE_HUGEPAGES:-false}" == "true" ]]; then
+        deallocate_hugepages
+    fi
+
+    # Revert performance tweaks
+    if [[ "${ENABLE_PERFORMANCE_TWEAKS:-false}" == "true" ]]; then
+        revert_performance_tweaks
+    fi
+
+    # Reset CPU governor
+    if [[ "${ENABLE_CPU_GOVERNOR:-false}" == "true" ]] && command -v pstate-frequency &>/dev/null; then
+        log_info "Resetting CPU governor to auto"
+        pstate-frequency --set -p auto -n 50 2>/dev/null || log_warn "Failed to reset CPU governor"
+    fi
+
+    log_info "=========================================="
+    log_info "VFIO teardown complete"
+    log_info "=========================================="
+}
+
+main "$@"
