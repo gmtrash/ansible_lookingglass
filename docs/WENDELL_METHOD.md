@@ -58,25 +58,49 @@ Our setup already implements most of these. Let's verify completeness.
 
 **What it does**: Changes the hypervisor vendor ID to something less suspicious
 
-**Forum post suggests**:
+**Forum post suggests multiple options**:
+
+**Option A - Random string**:
+```xml
+<hyperv>
+  <vendor_id state='on' value='0123756792CD'/>
+</hyperv>
+```
+
+**Option B - KVM/Hyper-V hybrid**:
 ```xml
 <hyperv>
   <vendor_id state='on' value='kvm hyperv'/>
 </hyperv>
 ```
 
-**Our implementation is BETTER**:
+**Our implementation (BEST)**:
 ```xml
 <hyperv>
   <vendor_id state='on' value='GenuineIntel'/>  <!-- or AuthenticAMD for AMD -->
 </hyperv>
 ```
 
-**Why ours is better**: Using CPU vendor strings makes it look like bare metal, while "kvm hyperv" still reveals it's a hypervisor.
+**Comparison of vendor_id values**:
 
-**Status**: ✅ **IMPLEMENTED AND IMPROVED**
+| Value | What Windows Sees | Anti-Cheat Impact | Recommendation |
+|-------|------------------|-------------------|----------------|
+| `0123756792CD` | Unknown hypervisor | ⚠️ Suspicious - not a real vendor | Avoid |
+| `kvm hyperv` | KVM/Hyper-V hybrid | ⚠️ Still shows as hypervisor | Avoid |
+| `GenuineIntel` | Intel CPU (bare metal) | ✅ Looks like real hardware | **Use this (Intel)** |
+| `AuthenticAMD` | AMD CPU (bare metal) | ✅ Looks like real hardware | **Use this (AMD)** |
+
+**Why ours is better**:
+- `GenuineIntel`/`AuthenticAMD` are actual CPU vendor strings
+- Makes Windows think it's running on bare metal
+- Matches CPUID vendor string from host-passthrough
+- Random strings like `0123756792CD` are suspicious (not a known vendor)
+- `kvm hyperv` still reveals it's a hypervisor
+
+**Status**: ✅ **IMPLEMENTED WITH BEST PRACTICE**
 - In `ansible/templates/vm-config.xml.j2:80`
 - Auto-detects Intel vs AMD in `scripts/setup-windows-vm.sh`
+- Configurable via `hyperv_vendor_id` in inventory.yml
 
 ### 4. Complete Hyper-V Enlightenments
 
@@ -254,9 +278,11 @@ disable_x2apic: true
 
 **Trade-off**: May slightly reduce multi-core performance.
 
-### Optional: Hyper-V Passthrough Mode (AMD)
+### Optional: Hyper-V Passthrough Mode
 
-For AMD systems, you can use passthrough mode for Hyper-V:
+**The "Little Trick" from the forum post**:
+
+Instead of manually configuring each Hyper-V feature, you can use passthrough mode:
 
 **Enable in inventory.yml**:
 ```yaml
@@ -266,11 +292,62 @@ hyperv_mode: "passthrough"
 **What it does**:
 ```xml
 <hyperv mode='passthrough'>
-  <!-- All Hyper-V features passed through from host -->
+  <!-- All Hyper-V features automatically passed through from host -->
 </hyperv>
 ```
 
-**When to use**: AMD Ryzen systems with specific anti-cheat issues.
+**Comparison: Custom vs Passthrough**:
+
+| Mode | What It Does | Pros | Cons |
+|------|-------------|------|------|
+| `custom` | Manually specify each feature | ✅ Full control<br>✅ Works on all systems<br>✅ No host dependency | ⚠️ Must configure each feature |
+| `passthrough` | Auto-expose host's Hyper-V features | ✅ Automatic configuration<br>✅ May improve compatibility | ⚠️ Requires host Hyper-V support<br>⚠️ Less predictable |
+
+**Our default: `custom`**
+- Works on all systems (Intel/AMD, with or without Hyper-V)
+- Explicit control over features
+- Predictable behavior
+- Already includes 12+ optimal features
+
+**When to use `passthrough`**:
+- AMD Ryzen systems with specific anti-cheat issues
+- Host already has Hyper-V enabled
+- Troubleshooting compatibility problems
+- Want automatic feature detection
+
+**How to switch to passthrough**:
+
+Edit `ansible/inventory.yml`:
+```yaml
+hyperv_mode: "passthrough"
+```
+
+Or manually edit VM XML:
+```bash
+virsh edit win11
+```
+
+Change:
+```xml
+<hyperv mode='custom'>
+  <relaxed state='on'/>
+  <!-- ... all the features ... -->
+</hyperv>
+```
+
+To:
+```xml
+<hyperv mode='passthrough'>
+  <!-- Features automatically detected -->
+</hyperv>
+```
+
+**Note**: With passthrough mode, you can still specify vendor_id:
+```xml
+<hyperv mode='passthrough'>
+  <vendor_id state='on' value='GenuineIntel'/>
+</hyperv>
+```
 
 ### QEMU Command Line Arguments
 
