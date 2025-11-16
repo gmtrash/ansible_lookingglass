@@ -55,6 +55,33 @@ all:
       enable_performance_tweaks: true
       enable_cpu_governor: false
 
+      # VM Detection Evasion
+      # These settings make Windows think it's on real hardware, not a VM
+      # Important for anti-cheat software and some applications
+
+      # Hyper-V settings
+      hyperv_mode: "custom"  # or "passthrough" for AMD
+      hyperv_vendor_id: "GenuineIntel"  # Use "AuthenticAMD" for AMD CPUs
+      disable_x2apic: false  # Set to true if anti-cheat detects VM via x2APIC
+
+      # SMBIOS spoofing - Get real values with: sudo dmidecode -t bios && sudo dmidecode -t system
+      # Use your actual motherboard info to avoid detection
+      smbios_bios_vendor: "American Megatrends International, LLC."
+      smbios_bios_version: "F20"
+      smbios_bios_date: "12/15/2023"
+      smbios_system_manufacturer: "Gigabyte Technology Co., Ltd."
+      smbios_system_product: "B550 AORUS ELITE V2"
+      smbios_system_version: "Default string"
+      smbios_system_serial: "Default string"
+      smbios_system_sku: "Default string"
+      smbios_system_family: "Desktop"
+
+      # MAC Address - Avoid VM vendor prefixes
+      # Leave undefined for random Dell MAC (00:1E:C9:XX:XX:XX)
+      # Or specify custom: "00:50:B6:12:34:56" (HP), "E4:5F:01:12:34:56" (ASRock)
+      # AVOID: 52:54:00 (QEMU), 00:0C:29 (VMware), 08:00:27 (VirtualBox)
+      # vm_mac_address: "00:1E:C9:AB:CD:EF"
+
       # Storage Configuration
       vm_disk_path: "/var/lib/libvirt/images/win11.qcow2"
       vm_disk_size: "120G"

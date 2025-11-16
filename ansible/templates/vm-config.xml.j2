@@ -33,15 +33,20 @@
     <iothreadpin iothread='1' cpuset='{{ host_cpu_cores }}'/>
   </cputune>
 
-  <!-- SMBIOS Information -->
+  <!-- SMBIOS Information - Use real host values to avoid VM detection -->
   <sysinfo type='smbios'>
     <bios>
-      <entry name='vendor'>American Megatrends International, LLC.</entry>
+      <entry name='vendor'>{{ smbios_bios_vendor | default('American Megatrends International, LLC.') }}</entry>
+      <entry name='version'>{{ smbios_bios_version | default('F20') }}</entry>
+      <entry name='date'>{{ smbios_bios_date | default('12/15/2023') }}</entry>
     </bios>
     <system>
-      <entry name='manufacturer'>System Manufacturer</entry>
-      <entry name='product'>System Product Name</entry>
-      <entry name='version'>1.0</entry>
+      <entry name='manufacturer'>{{ smbios_system_manufacturer | default('ASUS') }}</entry>
+      <entry name='product'>{{ smbios_system_product | default('System Product Name') }}</entry>
+      <entry name='version'>{{ smbios_system_version | default('1.0') }}</entry>
+      <entry name='serial'>{{ smbios_system_serial | default('System Serial Number') }}</entry>
+      <entry name='sku'>{{ smbios_system_sku | default('SKU') }}</entry>
+      <entry name='family'>{{ smbios_system_family | default('Desktop') }}</entry>
     </system>
   </sysinfo>
 
@@ -55,37 +60,74 @@
     <smbios mode='sysinfo'/>
   </os>
 
-  <!-- Features -->
+  <!-- Features - VM Detection Evasion -->
   <features>
     <acpi/>
     <apic/>
-    <hyperv>
+    <!-- Hyper-V Enlightenments - Makes Windows think it's running on Hyper-V (Microsoft's hypervisor) -->
+    <hyperv mode='{{ hyperv_mode | default("custom") }}'>
       <relaxed state='on'/>
       <vapic state='on'/>
       <spinlocks state='on' retries='8191'/>
-      <vendor_id state='on' value='0123756792CD'/>
+      <vpindex state='on'/>
+      <runtime state='on'/>
+      <synic state='on'/>
+      <stimer state='on'>
+        <direct state='on'/>
+      </stimer>
+      <reset state='on'/>
+      <!-- Custom vendor ID to hide KVM signature -->
+      <vendor_id state='on' value='{{ hyperv_vendor_id | default("GenuineIntel") }}'/>
+      <frequencies state='on'/>
+      <reenlightenment state='on'/>
+      <tlbflush state='on'/>
+{% if vm_cpu_cores_per_die | int > 1 %}
+      <ipi state='on'/>
+{% endif %}
     </hyperv>
+    <!-- Disable VMware backdoor port -->
     <vmport state='off'/>
+    <!-- Disable Performance Monitoring Unit - can leak VM info -->
+    <pmu state='off'/>
+    <!-- Hide KVM from CPUID -->
     <kvm>
-      <hidden state="on"/>
+      <hidden state='on'/>
     </kvm>
   </features>
 
-  <!-- CPU Passthrough -->
-  <cpu mode='host-passthrough' check='none' migratable="on">
+  <!-- CPU Passthrough with VM Detection Evasion -->
+  <cpu mode='host-passthrough' check='none' migratable='off'>
     <topology sockets='{{ vm_cpu_sockets }}' dies='{{ vm_cpu_dies }}' cores='{{ vm_cpu_cores_per_die }}' threads='{{ vm_cpu_threads }}'/>
+    <!-- Hide hypervisor presence from CPUID -->
     <feature policy='disable' name='hypervisor'/>
+    <!-- Invariant TSC for consistent timing -->
     <feature policy='require' name='invtsc'/>
+{% if 'AMD' in ansible_processor[0] | default('') %}
+    <!-- AMD-specific features -->
     <feature policy='require' name='topoext'/>
+    <feature policy='disable' name='svm'/>
+{% else %}
+    <!-- Intel-specific features -->
+    <feature policy='disable' name='vmx'/>
+{% endif %}
+{% if disable_x2apic | default(false) %}
+    <!-- Disable x2APIC if causing issues with anti-cheat -->
+    <feature policy='disable' name='x2apic'/>
+{% endif %}
+    <!-- CPU cache passthrough for better performance and less VM fingerprinting -->
     <cache mode='passthrough'/>
   </cpu>
 
-  <!-- Clock -->
-  <clock offset="localtime">
-    <timer name="rtc" tickpolicy="catchup"/>
-    <timer name="pit" tickpolicy="delay"/>
-    <timer name="hpet" present="no"/>
-    <timer name="hypervclock" present="yes"/>
+  <!-- Clock Configuration - Important for VM detection evasion -->
+  <clock offset='localtime'>
+    <timer name='rtc' tickpolicy='catchup'/>
+    <timer name='pit' tickpolicy='delay'/>
+    <!-- Disable HPET - can be used for VM detection -->
+    <timer name='hpet' present='no'/>
+    <!-- Native TSC for accurate timing -->
+    <timer name='tsc' present='yes' mode='native'/>
+    <!-- Hyper-V reference time -->
+    <timer name='hypervclock' present='yes'/>
   </clock>
 
   <!-- Power Management -->
@@ -149,8 +191,14 @@
       <address type='pci' domain='0x0000' bus='0x04' slot='0x00' function='0x0'/>
     </controller>
 
-    <!-- Network -->
+    <!-- Network - Use realistic MAC address to avoid VM detection -->
     <interface type='bridge'>
+{% if custom_mac_address is defined %}
+      <mac address='{{ custom_mac_address }}'/>
+{% else %}
+      <!-- Default to Intel NIC MAC prefix (avoid 52:54:00 QEMU default) -->
+      <mac address='{{ vm_mac_address | default("00:1E:C9:" + "%02x:%02x:%02x" | format(range(0,256)|random, range(0,256)|random, range(0,256)|random)) }}'/>
+{% endif %}
       <source bridge='{{ bridge_name | default("br0") }}'/>
       <model type='virtio'/>
     </interface>
