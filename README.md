@@ -182,22 +182,197 @@ sudo virsh define /usr/local/share/vfio-setup/win11.xml
 sudo virsh start win11
 ```
 
-### 7. Install Looking Glass
+### 7. Install and Configure Windows 11
 
-**On Windows (Guest):**
-1. Download [Looking Glass Host](https://looking-glass.io/downloads)
-2. Install the IVSHMEM driver
-3. Run `looking-glass-host.exe`
+Install Windows 11 in the VM using the passed-through GPU:
 
-**On Linux (Host):**
-```bash
-# Install from package manager or build from source
-sudo apt install looking-glass-client  # Ubuntu
-sudo dnf install looking-glass-client  # Fedora
+1. **Initial Setup**: Use virt-manager or SPICE to see the VM during Windows installation
+   ```bash
+   virt-manager
+   # Or connect via SPICE
+   remote-viewer spice://localhost:5900
+   ```
 
-# Run client
-looking-glass-client
-```
+2. **Install Windows 11** as normal
+
+3. **Install VirtIO drivers** for network/storage if using virtio devices
+   - Download from: https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/
+
+4. **Install GPU drivers** (NVIDIA/AMD) inside Windows
+
+### 8. Install Looking Glass
+
+**IMPORTANT**: Looking Glass runs **backwards** from what you might expect:
+- **Windows (Guest)** = Runs Looking Glass **HOST** application (captures and shares display)
+- **Linux (Host)** = Runs Looking Glass **CLIENT** (views the shared display)
+
+#### On Windows 11 (Guest VM):
+
+1. **Download Looking Glass Host**
+   - Visit: https://looking-glass.io/downloads
+   - Download latest stable release (e.g., `looking-glass-host-setup-B6.exe`)
+
+2. **Install IVSHMEM Driver**
+   ```
+   a. Download the latest IVSHMEM driver from Looking Glass downloads
+   b. Extract the driver package
+   c. Open Device Manager (Win+X → Device Manager)
+   d. Find "PCI standard RAM Controller" under "System devices"
+   e. Right-click → Update driver → Browse my computer
+   f. Point to extracted IVSHMEM driver folder
+   g. Install the driver
+   ```
+
+3. **Install Looking Glass Host Application**
+   - Run the installer (`looking-glass-host-setup-B6.exe`)
+   - Choose installation directory (default: `C:\Program Files\Looking Glass (host)`)
+   - **Important**: Check "Install as Service" option
+   - Complete installation
+
+4. **Configure Looking Glass Host**
+
+   Create config file: `C:\ProgramData\Looking Glass (host)\looking-glass-host.ini`
+   ```ini
+   [app]
+   shmFile=looking-glass
+
+   [capture]
+   # Use DXGI for NVIDIA, or D3D12 for AMD
+   captureAPI=DXGI
+
+   # Capture settings
+   throttleFPS=0
+
+   [audio]
+   enabled=true
+
+   [spice]
+   enabled=true
+   ```
+
+5. **Start Looking Glass Host Service**
+   ```
+   Option A: Reboot Windows (service auto-starts)
+
+   Option B: Start manually
+   - Open Services (Win+R → services.msc)
+   - Find "Looking Glass (host)"
+   - Right-click → Start
+   ```
+
+6. **Verify it's running**
+   - Check system tray for Looking Glass icon
+   - Or check Services to confirm it's running
+
+#### On Linux (Host):
+
+1. **Install Looking Glass Client**
+
+   **Ubuntu/Debian:**
+   ```bash
+   sudo apt update
+   sudo apt install looking-glass-client
+   ```
+
+   **Fedora:**
+   ```bash
+   sudo dnf install looking-glass-client
+   ```
+
+   **Arch:**
+   ```bash
+   sudo pacman -S looking-glass
+   ```
+
+   **Build from source** (latest features):
+   ```bash
+   # Install dependencies
+   sudo apt install binutils-dev cmake fonts-dejavu-core \
+     libfontconfig-dev gcc g++ pkg-config libegl-dev libgl-dev \
+     libgles-dev libspice-protocol-dev nettle-dev libx11-dev \
+     libxcursor-dev libxi-dev libxinerama-dev libxpresent-dev \
+     libxss-dev libxkbcommon-dev libwayland-dev wayland-protocols \
+     libpipewire-0.3-dev libpulse-dev libsamplerate0-dev
+
+   # Clone and build
+   git clone --recursive https://github.com/gnif/LookingGlass.git
+   cd LookingGlass
+   mkdir client/build
+   cd client/build
+   cmake ../
+   make
+   sudo make install
+   ```
+
+2. **Configure permissions** (if using libvirt shmem)
+   ```bash
+   # Add yourself to kvm group
+   sudo usermod -a -G kvm $USER
+
+   # Log out and back in for group to take effect
+   ```
+
+3. **Create Looking Glass client config** (optional)
+
+   `~/.config/looking-glass/client.ini`:
+   ```ini
+   [app]
+   shmFile=/dev/shm/looking-glass
+
+   [win]
+   fullScreen=yes
+   showFPS=yes
+
+   [input]
+   grabKeyboard=yes
+   escapeKey=KEY_SCROLLLOCK
+
+   [spice]
+   enable=yes
+   audio=yes
+   ```
+
+4. **Run Looking Glass Client**
+   ```bash
+   # Basic
+   looking-glass-client
+
+   # With options
+   looking-glass-client -F  # Fullscreen
+   looking-glass-client -F -p 0  # Fullscreen, no SPICE cursor
+   looking-glass-client -F -K 200  # Fullscreen, 200Hz refresh
+   ```
+
+5. **Client Keyboard Shortcuts**
+   - `Scroll Lock` - Capture/release mouse and keyboard
+   - `Scroll Lock + Q` - Quit client
+   - `Scroll Lock + F` - Toggle fullscreen
+   - `Scroll Lock + V` - Toggle video synchronization
+   - `Scroll Lock + I` - Show FPS and latency information
+   - `Scroll Lock + R` - Rotate display
+   - `Scroll Lock + T` - Toggle frame timing display
+
+### 9. Verify Everything Works
+
+1. **Start the VM**
+   ```bash
+   virsh start win11
+   ```
+
+2. **Wait for Windows to boot** (check SPICE if needed)
+
+3. **Launch Looking Glass client**
+   ```bash
+   looking-glass-client -F
+   ```
+
+4. **You should see** your Windows desktop with near-native performance!
+
+**Troubleshooting if you see a black screen:**
+- Ensure Windows booted completely
+- Check Looking Glass Host is running in Windows Task Manager
+- Verify IVSHMEM device is working in Device Manager
+- Check shared memory exists: `ls -lh /dev/shm/looking-glass`
 
 ## Manual Installation
 
