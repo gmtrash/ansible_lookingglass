@@ -110,6 +110,37 @@ Enable the following in your BIOS:
 
 ## Quick Start
 
+### ⚡ Automated Setup (Recommended)
+
+**One-command installation:**
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/ansible_lookingglass.git
+cd ansible_lookingglass
+
+# Run automated setup
+sudo bash setup_win11.sh
+```
+
+This script will:
+- ✅ Check all prerequisites
+- ✅ Auto-detect GPU and CPU
+- ✅ Download VirtIO drivers
+- ✅ Configure hugepages
+- ✅ Generate optimized VM configuration
+- ✅ Define and start the VM
+- ✅ Launch virt-manager for Windows installation
+
+**That's it!** Follow the on-screen instructions to install Windows 11.
+
+---
+
+### 🔧 Manual Setup (Advanced)
+
+<details>
+<summary>Click to expand manual installation steps</summary>
+
 ### 1. Enable IOMMU
 
 Add kernel parameters to enable IOMMU:
@@ -181,6 +212,8 @@ sudo qemu-img create -f qcow2 /var/lib/libvirt/images/win11.qcow2 120G
 sudo virsh define /usr/local/share/vfio-setup/win11.xml
 sudo virsh start win11
 ```
+
+</details>
 
 ### 7. Install and Configure Windows 11
 
