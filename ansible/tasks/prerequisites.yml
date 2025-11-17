@@ -1,0 +1,76 @@
+---
+# Prerequisites - Check and install required packages
+
+- name: Install QEMU/KVM and virtualization packages
+  package:
+    name:
+      - qemu-kvm
+      - libvirt-daemon-system
+      - libvirt-clients
+      - virtinst
+      - virt-manager
+      - ovmf
+      - bridge-utils
+      - dnsmasq
+      - dmidecode
+      - pciutils
+      - wget
+      - curl
+    state: present
+  register: package_install
+  failed_when: false
+
+- name: Install packages (alternative names for Fedora/RHEL)
+  package:
+    name:
+      - qemu-kvm
+      - libvirt
+      - virt-install
+      - virt-manager
+      - edk2-ovmf
+      - bridge-utils
+      - dnsmasq
+      - dmidecode
+      - pciutils
+      - wget
+      - curl
+    state: present
+  when: package_install is failed
+
+- name: Check if IOMMU is enabled
+  shell: dmesg | grep -i iommu
+  register: iommu_check
+  changed_when: false
+  failed_when: false
+
+- name: Display IOMMU status
+  debug:
+    msg: "{{ 'IOMMU is ENABLED ✓' if 'enabled' in iommu_check.stdout.lower() else 'IOMMU may not be enabled! Add intel_iommu=on or amd_iommu=on to kernel parameters' }}"
+
+- name: Warn if IOMMU not enabled
+  pause:
+    prompt: |
+      WARNING: IOMMU does not appear to be enabled!
+
+      To enable IOMMU:
+      1. Edit /etc/default/grub
+      2. Add to GRUB_CMDLINE_LINUX_DEFAULT:
+         - For Intel: intel_iommu=on iommu=pt
+         - For AMD: amd_iommu=on iommu=pt
+      3. Run: sudo update-grub (or grub2-mkconfig -o /boot/grub2/grub.cfg)
+      4. Reboot
+
+      Press Ctrl+C to abort, or Enter to continue anyway...
+  when: "'enabled' not in iommu_check.stdout.lower()"
+
+- name: Ensure libvirtd is running
+  systemd:
+    name: libvirtd
+    state: started
+    enabled: true
+
+- name: Add current user to libvirt groups
+  user:
+    name: "{{ lookup('env', 'SUDO_USER') | default(ansible_user_id) }}"
+    groups: libvirt,kvm
+    append: true

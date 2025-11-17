@@ -110,9 +110,9 @@ Enable the following in your BIOS:
 
 ## Quick Start
 
-### ⚡ Automated Setup (Recommended)
+### ⚡ Fully Automated Setup (Recommended)
 
-**One-command installation:**
+**Single command - complete installation:**
 
 ```bash
 # Clone the repository
@@ -120,19 +120,37 @@ git clone https://github.com/yourusername/ansible_lookingglass.git
 cd ansible_lookingglass
 
 # Run automated setup
-sudo bash setup_win11.sh
+sudo ./setup.sh
 ```
 
-This script will:
-- ✅ Check all prerequisites
-- ✅ Auto-detect GPU and CPU
-- ✅ Download VirtIO drivers
-- ✅ Configure hugepages
-- ✅ Generate optimized VM configuration
-- ✅ Define and start the VM
-- ✅ Launch virt-manager for Windows installation
+**What it does (7 automated phases):**
 
-**That's it!** Follow the on-screen instructions to install Windows 11.
+| Phase | Tasks | Duration |
+|-------|-------|----------|
+| **1. Prerequisites** | Install qemu-kvm, libvirt, virt-manager, verify IOMMU | ~2 min |
+| **2. Hardware Detection** | Auto-detect GPU, CPU, SMBIOS (BIOS/motherboard info) | ~5 sec |
+| **3. Download ISOs** | Download VirtIO drivers, prompt for Windows 11 ISO | ~1 min |
+| **4. Host Configuration** | Configure hugepages, system tuning | ~10 sec |
+| **5. VFIO Setup** | Install hooks, libraries for GPU switching | ~15 sec |
+| **6. VM Creation** | Generate XML with full VM evasion, define in libvirt | ~20 sec |
+| **7. Launch** | Start VM, open virt-manager | ~5 sec |
+
+**Total time: ~5 minutes** (excluding Windows installation)
+
+The script is **fully idempotent** (safe to run multiple times) and uses Ansible for reliability.
+
+### 🎛️ Customization Options
+
+```bash
+# Custom VM name and specs
+sudo VM_NAME=gaming VM_MEMORY_GB=32 VM_VCPUS=16 ./setup.sh
+
+# Skip auto-start (create VM without starting)
+sudo AUTO_START_VM=false ./setup.sh
+
+# Skip Windows ISO check
+sudo SKIP_ISO_DOWNLOAD=true WINDOWS_ISO=/path/to/win11.iso ./setup.sh
+```
 
 ---
 

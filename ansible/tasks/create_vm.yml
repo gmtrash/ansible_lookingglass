@@ -1,0 +1,120 @@
+---
+# Create VM - Generate XML and define in libvirt
+
+- name: Load detected hardware configuration
+  include_vars:
+    file: /tmp/vfio_detected_hardware.yml
+    name: hw
+
+- name: Set hyperv vendor_id based on CPU
+  set_fact:
+    hyperv_vendor_id: "{{ 'AuthenticAMD' if hw.cpu_vendor == 'AMD' else 'GenuineIntel' }}"
+
+- name: Generate random MAC address (realistic prefix)
+  shell: printf "00:1E:C9:%02X:%02X:%02X" $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
+  register: mac_gen
+  changed_when: false
+
+- name: Set VM MAC address
+  set_fact:
+    vm_mac_address: "{{ mac_gen.stdout }}"
+
+- name: Calculate CPU topology
+  set_fact:
+    vm_cpu_sockets: 1
+    vm_cpu_dies: 1
+    vm_cpu_cores_per_die: "{{ (vm_vcpus | int / 2) | int }}"
+    vm_cpu_threads: 2
+
+- name: Create VM disk image
+  shell: |
+    if [[ ! -f "{{ iso_dir }}/{{ vm_name }}.qcow2" ]]; then
+      qemu-img create -f qcow2 "{{ iso_dir }}/{{ vm_name }}.qcow2" 120G
+      echo "created"
+    else
+      echo "exists"
+    fi
+  register: disk_create
+  changed_when: "'created' in disk_create.stdout"
+
+- name: Generate VM XML from template
+  template:
+    src: "{{ project_root }}/ansible/templates/vm-config.xml.j2"
+    dest: "{{ install_dir }}/{{ vm_name }}.xml"
+    mode: '0644'
+  vars:
+    # Pass all detected hardware
+    gpu_pci_video: "{{ hw.gpu_pci_video }}"
+    gpu_pci_audio: "{{ hw.gpu_pci_audio }}"
+
+    # SMBIOS
+    smbios_bios_vendor: "{{ hw.smbios_bios_vendor }}"
+    smbios_bios_version: "{{ hw.smbios_bios_version }}"
+    smbios_bios_date: "{{ hw.smbios_bios_date }}"
+    smbios_system_manufacturer: "{{ hw.smbios_system_manufacturer }}"
+    smbios_system_product: "{{ hw.smbios_system_product }}"
+    smbios_system_version: "{{ hw.smbios_system_version }}"
+    smbios_system_serial: "{{ hw.smbios_system_serial }}"
+    smbios_system_sku: "Default string"
+    smbios_system_family: "{{ hw.smbios_system_family }}"
+    smbios_baseboard_manufacturer: "{{ hw.smbios_baseboard_manufacturer }}"
+    smbios_baseboard_product: "{{ hw.smbios_baseboard_product }}"
+    smbios_baseboard_version: "{{ hw.smbios_baseboard_version }}"
+    smbios_baseboard_serial: "{{ hw.smbios_baseboard_serial }}"
+    smbios_baseboard_asset: "{{ hw.smbios_baseboard_asset }}"
+    smbios_baseboard_location: "Default string"
+
+    # VM settings
+    vm_disk_path: "{{ iso_dir }}/{{ vm_name }}.qcow2"
+    enable_hugepages: true
+    looking_glass_size_mb: 256
+    use_kvmfr_module: false
+    bridge_name: virbr0
+    custom_mac_address: "{{ vm_mac_address }}"
+
+    # CPU pinning (simple: use first N cores for VM)
+    vm_cpu_cores: "0-{{ vm_vcpus - 1 }}"
+    host_cpu_cores: "{{ vm_vcpus }}-{{ hw.cpu_cores - 1 }}"
+
+- name: Add Windows ISO to VM XML
+  lineinfile:
+    path: "{{ install_dir }}/{{ vm_name }}.xml"
+    insertafter: "<disk type='file' device='cdrom'>"
+    line: "      <source file='{{ windows_iso }}'/>"
+    regexp: ".*Win11.*iso.*"
+  when: windows_stat.stat.exists
+
+- name: Check if VM already exists
+  shell: virsh list --all --name | grep -q "^{{ vm_name }}$"
+  register: vm_exists
+  failed_when: false
+  changed_when: false
+
+- name: Undefine existing VM
+  shell: |
+    virsh destroy {{ vm_name }} 2>/dev/null || true
+    virsh undefine {{ vm_name }} --nvram 2>/dev/null || true
+  when: vm_exists.rc == 0
+
+- name: Define VM in libvirt
+  shell: virsh define "{{ install_dir }}/{{ vm_name }}.xml"
+  register: vm_define
+  changed_when: true
+
+- name: Verify VM is defined
+  shell: virsh list --all --name
+  register: vm_list
+  changed_when: false
+  failed_when: vm_name not in vm_list.stdout
+
+- name: Display VM creation status
+  debug:
+    msg:
+      - "✓ VM '{{ vm_name }}' created successfully"
+      - "✓ Disk: {{ iso_dir }}/{{ vm_name }}.qcow2"
+      - "✓ XML: {{ install_dir }}/{{ vm_name }}.xml"
+      - "✓ Memory: {{ vm_memory_gb }}GB ({{ hugepages_needed }} hugepages)"
+      - "✓ CPUs: {{ vm_vcpus }} cores"
+      - "✓ GPU: {{ hw.gpu_pci_video }}"
+      - "✓ Hypervisor hiding: ENABLED"
+      - "✓ SMBIOS spoofing: {{ hw.smbios_system_manufacturer }} {{ hw.smbios_system_product }}"

@@ -1,0 +1,128 @@
+---
+# Show Instructions - Display post-installation steps
+
+- name: Display completion message
+  debug:
+    msg: |
+
+      ╔════════════════════════════════════════════════════════════╗
+      ║           LOOKING GLASS VFIO SETUP COMPLETE!               ║
+      ╚════════════════════════════════════════════════════════════╝
+
+      VM Configuration:
+        Name:     {{ vm_name }}
+        Status:   {{ 'Running ✓' if auto_start_vm else 'Stopped (ready to start)' }}
+        Memory:   {{ vm_memory_gb }}GB
+        CPUs:     {{ vm_vcpus }} cores
+        GPU:      {{ hw.gpu_pci_video | default('Auto-detected') }}
+        XML:      {{ install_dir }}/{{ vm_name }}.xml
+
+      VM Detection Evasion: ENABLED ✓
+        ✓ Hypervisor CPUID bit disabled
+        ✓ KVM signature hidden
+        ✓ Hyper-V vendor ID: {{ hyperv_vendor_id }}
+        ✓ SMBIOS spoofed ({{ hw.smbios_system_manufacturer }} {{ hw.smbios_system_product }})
+        ✓ Realistic MAC address: {{ vm_mac_address }}
+        ✓ Native TSC timing
+        ✓ HPET disabled
+        ✓ PMU disabled
+        ✓ Nested virtualization hidden
+
+      ┌────────────────────────────────────────────────────────────┐
+      │                    NEXT STEPS                              │
+      └────────────────────────────────────────────────────────────┘
+
+      1. INSTALL WINDOWS 11
+         {% if auto_start_vm %}✓ VM is running - connect with virt-manager
+         {% else %}Start VM: virsh start {{ vm_name }}
+         Connect:  virt-manager{% endif %}
+
+         During installation:
+         - Click "Load driver" when asked for disk
+         - Browse to D:\ (VirtIO ISO)
+         - Install: viostor (storage) and NetKVM (network)
+
+      2. INSTALL GPU DRIVERS (in Windows)
+         - Download from NVIDIA or AMD website
+         - Install and reboot
+
+      3. INSTALL LOOKING GLASS HOST (in Windows)
+         - Download: https://looking-glass.io/downloads
+         - Run: looking-glass-host-setup.exe
+         - ✓ CHECK "Install as Windows Service"
+         - Install IVSHMEM driver (included)
+         - Reboot Windows
+
+      4. INSTALL LOOKING GLASS CLIENT (Linux host)
+         Ubuntu/Debian:  sudo apt install looking-glass-client
+         Fedora:         sudo dnf install looking-glass-client
+         Arch:           sudo pacman -S looking-glass
+
+      5. RUN LOOKING GLASS
+         virsh start {{ vm_name }}
+         looking-glass-client -F
+
+      ┌────────────────────────────────────────────────────────────┐
+      │                  QUICK COMMANDS                            │
+      └────────────────────────────────────────────────────────────┘
+
+      Start VM:        virsh start {{ vm_name }}
+      Stop VM:         virsh shutdown {{ vm_name }}
+      Force stop:      virsh destroy {{ vm_name }}
+      Edit VM:         virsh edit {{ vm_name }}
+      Connect GUI:     virt-manager
+      Looking Glass:   looking-glass-client -F
+
+      Scroll Lock           - Capture/release input
+      Scroll Lock + Q       - Quit Looking Glass
+      Scroll Lock + F       - Toggle fullscreen
+      Scroll Lock + I       - Show performance stats
+
+      ┌────────────────────────────────────────────────────────────┐
+      │                   DOCUMENTATION                            │
+      └────────────────────────────────────────────────────────────┘
+
+      Full guide:      {{ project_root }}/README.md
+      VM evasion:      {{ project_root }}/docs/VM_DETECTION_EVASION.md
+      Wendell method:  {{ project_root }}/docs/WENDELL_METHOD.md
+      Windows setup:   {{ project_root }}/docs/WINDOWS_INSTALLATION_GUIDE.md
+
+      ╔════════════════════════════════════════════════════════════╗
+      ║  Your Windows 11 VM is ready with full anti-cheat         ║
+      ║  compatibility and VM detection evasion!                   ║
+      ╚════════════════════════════════════════════════════════════╝
+
+- name: Save configuration summary
+  copy:
+    dest: "{{ install_dir }}/{{ vm_name }}_setup_summary.txt"
+    content: |
+      Looking Glass VFIO Setup Summary
+      ================================
+      Generated: {{ ansible_date_time.iso8601 }}
+
+      VM Configuration:
+        Name:          {{ vm_name }}
+        Memory:        {{ vm_memory_gb }}GB
+        CPUs:          {{ vm_vcpus }}
+        Hugepages:     {{ hugepages_needed }}
+        Disk:          {{ iso_dir }}/{{ vm_name }}.qcow2
+        XML:           {{ install_dir }}/{{ vm_name }}.xml
+
+      Hardware:
+        GPU Video:     {{ hw.gpu_pci_video }}
+        GPU Audio:     {{ hw.gpu_pci_audio | default('None') }}
+        CPU Vendor:    {{ hw.cpu_vendor }}
+        Hyperv ID:     {{ hyperv_vendor_id }}
+
+      SMBIOS:
+        BIOS:          {{ hw.smbios_bios_vendor }} {{ hw.smbios_bios_version }}
+        System:        {{ hw.smbios_system_manufacturer }} {{ hw.smbios_system_product }}
+        Baseboard:     {{ hw.smbios_baseboard_manufacturer }} {{ hw.smbios_baseboard_product }}
+        MAC Address:   {{ vm_mac_address }}
+
+      Quick Commands:
+        Start:    virsh start {{ vm_name }}
+        Stop:     virsh shutdown {{ vm_name }}
+        Connect:  virt-manager
+        LG:       looking-glass-client -F
+    mode: '0644'

@@ -1,0 +1,76 @@
+---
+#############################################################################
+##       Looking Glass VFIO Complete Setup - Main Playbook                ##
+##           Full automated Windows 11 VM installation                     ##
+#############################################################################
+
+- name: Complete Looking Glass VFIO Setup
+  hosts: localhost
+  become: true
+  gather_facts: true
+
+  vars:
+    # Default configuration (can be overridden)
+    vm_name: "{{ lookup('env', 'VM_NAME') | default('win11', true) }}"
+    vm_memory_gb: "{{ lookup('env', 'VM_MEMORY_GB') | default(16, true) | int }}"
+    vm_vcpus: "{{ lookup('env', 'VM_VCPUS') | default(12, true) | int }}"
+    skip_iso_download: "{{ lookup('env', 'SKIP_ISO_DOWNLOAD') | default('false', true) | bool }}"
+    auto_start_vm: "{{ lookup('env', 'AUTO_START_VM') | default('true', true) | bool }}"
+
+    # Paths
+    project_root: "{{ playbook_dir | dirname }}"
+    install_dir: /usr/local/share/vfio-setup
+    iso_dir: /var/lib/libvirt/images
+    virtio_iso: "{{ iso_dir }}/virtio-win.iso"
+    windows_iso: "{{ iso_dir }}/Win11_23H2.iso"
+
+  tasks:
+    - name: "=== PHASE 1: Prerequisites ==="
+      debug:
+        msg: "Checking system prerequisites and installing packages..."
+
+    - import_tasks: tasks/prerequisites.yml
+
+    - name: "=== PHASE 2: Hardware Detection ==="
+      debug:
+        msg: "Detecting GPU, CPU, and SMBIOS information..."
+
+    - import_tasks: tasks/detect_hardware.yml
+
+    - name: "=== PHASE 3: Download ISOs ==="
+      debug:
+        msg: "Downloading VirtIO drivers and checking for Windows ISO..."
+
+    - import_tasks: tasks/download_isos.yml
+
+    - name: "=== PHASE 4: Host Configuration ==="
+      debug:
+        msg: "Configuring hugepages and system settings..."
+
+    - import_tasks: tasks/configure_host.yml
+
+    - name: "=== PHASE 5: VFIO Library Setup ==="
+      debug:
+        msg: "Installing VFIO libraries and hooks..."
+
+    - import_tasks: tasks/install_vfio.yml
+
+    - name: "=== PHASE 6: VM Creation ==="
+      debug:
+        msg: "Generating VM configuration with all evasion techniques..."
+
+    - import_tasks: tasks/create_vm.yml
+
+    - name: "=== PHASE 7: VM Startup ==="
+      debug:
+        msg: "Starting VM and launching virt-manager..."
+      when: auto_start_vm
+
+    - import_tasks: tasks/start_vm.yml
+      when: auto_start_vm
+
+    - name: "=== SETUP COMPLETE ==="
+      debug:
+        msg: "Looking Glass VFIO setup finished successfully!"
+
+    - import_tasks: tasks/show_instructions.yml
