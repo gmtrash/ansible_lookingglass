@@ -180,6 +180,13 @@
           changed_when: false
           failed_when: false
 
+        - name: Get Baseboard information
+          shell: |
+            dmidecode -t baseboard | grep -E 'Manufacturer|Product Name|Version|Serial Number|Asset Tag|Location In Chassis' | head -6
+          register: baseboard_info
+          changed_when: false
+          failed_when: false
+
         - name: Save SMBIOS info for reference
           copy:
             dest: "{{ install_dir }}/config/host_smbios_info.txt"
@@ -187,11 +194,14 @@
               # Host SMBIOS Information
               # Use these values in inventory.yml for better VM detection evasion
 
-              # BIOS Information:
+              # BIOS Information (Type 0):
               {{ bios_info.stdout }}
 
-              # System Information:
+              # System Information (Type 1):
               {{ system_info.stdout }}
+
+              # Baseboard Information (Type 2):
+              {{ baseboard_info.stdout }}
 
               # To use these values, add them to your inventory.yml file:
               # smbios_bios_vendor: "..."
@@ -199,7 +209,16 @@
               # smbios_bios_date: "..."
               # smbios_system_manufacturer: "..."
               # smbios_system_product: "..."
-              # etc.
+              # smbios_system_version: "..."
+              # smbios_system_serial: "..."
+              # smbios_system_sku: "..."
+              # smbios_system_family: "..."
+              # smbios_baseboard_manufacturer: "..."
+              # smbios_baseboard_product: "..."
+              # smbios_baseboard_version: "..."
+              # smbios_baseboard_serial: "..."
+              # smbios_baseboard_asset: "..."
+              # smbios_baseboard_location: "..."
             mode: '0644'
           when: bios_info.rc == 0
 

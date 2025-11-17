@@ -145,16 +145,27 @@ get_pci_ids() {
 detect_smbios() {
     print_info "Detecting SMBIOS information..."
 
+    # BIOS (Type 0)
     local bios_vendor=$(dmidecode -s bios-vendor 2>/dev/null || echo "American Megatrends International, LLC.")
     local bios_version=$(dmidecode -s bios-version 2>/dev/null || echo "F20")
     local bios_date=$(dmidecode -s bios-release-date 2>/dev/null || echo "12/15/2023")
 
+    # System (Type 1)
     local system_manufacturer=$(dmidecode -s system-manufacturer 2>/dev/null || echo "ASUS")
     local system_product=$(dmidecode -s system-product-name 2>/dev/null || echo "System Product Name")
     local system_version=$(dmidecode -s system-version 2>/dev/null || echo "1.0")
     local system_serial=$(dmidecode -s system-serial-number 2>/dev/null || echo "System Serial Number")
     local system_uuid=$(dmidecode -s system-uuid 2>/dev/null || uuidgen)
     local system_family=$(dmidecode -s system-family 2>/dev/null || echo "Desktop")
+
+    # Baseboard (Type 2)
+    local baseboard_manufacturer=$(dmidecode -s baseboard-manufacturer 2>/dev/null || echo "${system_manufacturer}")
+    local baseboard_product=$(dmidecode -s baseboard-product-name 2>/dev/null || echo "${system_product}")
+    local baseboard_version=$(dmidecode -s baseboard-version 2>/dev/null || echo "Rev X.0x")
+    local baseboard_serial=$(dmidecode -s baseboard-serial-number 2>/dev/null || echo "Default string")
+    local baseboard_asset=$(dmidecode -s baseboard-asset-tag 2>/dev/null || echo "Default string")
+    # Note: baseboard-location is not available via dmidecode -s, need to parse type 2 output
+    local baseboard_location=$(dmidecode -t baseboard 2>/dev/null | grep -i "Location In Chassis" | cut -d: -f2 | xargs || echo "Default string")
 
     echo "BIOS_VENDOR=${bios_vendor}"
     echo "BIOS_VERSION=${bios_version}"
@@ -165,6 +176,12 @@ detect_smbios() {
     echo "SYSTEM_SERIAL=${system_serial}"
     echo "SYSTEM_UUID=${system_uuid}"
     echo "SYSTEM_FAMILY=${system_family}"
+    echo "BASEBOARD_MANUFACTURER=${baseboard_manufacturer}"
+    echo "BASEBOARD_PRODUCT=${baseboard_product}"
+    echo "BASEBOARD_VERSION=${baseboard_version}"
+    echo "BASEBOARD_SERIAL=${baseboard_serial}"
+    echo "BASEBOARD_ASSET=${baseboard_asset}"
+    echo "BASEBOARD_LOCATION=${baseboard_location}"
 }
 
 generate_mac_address() {
@@ -321,6 +338,14 @@ done)
       <entry name='uuid'>${SYSTEM_UUID}</entry>
       <entry name='family'>${SYSTEM_FAMILY}</entry>
     </system>
+    <baseboard>
+      <entry name='manufacturer'>${BASEBOARD_MANUFACTURER}</entry>
+      <entry name='product'>${BASEBOARD_PRODUCT}</entry>
+      <entry name='version'>${BASEBOARD_VERSION}</entry>
+      <entry name='serial'>${BASEBOARD_SERIAL}</entry>
+      <entry name='asset'>${BASEBOARD_ASSET}</entry>
+      <entry name='location'>${BASEBOARD_LOCATION}</entry>
+    </baseboard>
   </sysinfo>
 
   <!-- Boot Configuration -->

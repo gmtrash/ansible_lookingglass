@@ -48,6 +48,14 @@
       <entry name='sku'>{{ smbios_system_sku | default('SKU') }}</entry>
       <entry name='family'>{{ smbios_system_family | default('Desktop') }}</entry>
     </system>
+    <baseboard>
+      <entry name='manufacturer'>{{ smbios_baseboard_manufacturer | default(smbios_system_manufacturer | default('ASUS')) }}</entry>
+      <entry name='product'>{{ smbios_baseboard_product | default(smbios_system_product | default('PRIME X570-PRO')) }}</entry>
+      <entry name='version'>{{ smbios_baseboard_version | default('Rev X.0x') }}</entry>
+      <entry name='serial'>{{ smbios_baseboard_serial | default('Default string') }}</entry>
+      <entry name='asset'>{{ smbios_baseboard_asset | default('Default string') }}</entry>
+      <entry name='location'>{{ smbios_baseboard_location | default('Default string') }}</entry>
+    </baseboard>
   </sysinfo>
 
   <!-- Boot Configuration -->

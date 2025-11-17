@@ -64,7 +64,7 @@ all:
       hyperv_vendor_id: "GenuineIntel"  # Use "AuthenticAMD" for AMD CPUs
       disable_x2apic: false  # Set to true if anti-cheat detects VM via x2APIC
 
-      # SMBIOS spoofing - Get real values with: sudo dmidecode -t bios && sudo dmidecode -t system
+      # SMBIOS spoofing - Get real values with: sudo dmidecode -t bios && sudo dmidecode -t system && sudo dmidecode -t baseboard
       # Use your actual motherboard info to avoid detection
       smbios_bios_vendor: "American Megatrends International, LLC."
       smbios_bios_version: "F20"
@@ -75,6 +75,13 @@ all:
       smbios_system_serial: "Default string"
       smbios_system_sku: "Default string"
       smbios_system_family: "Desktop"
+      # Baseboard (Motherboard) Information
+      smbios_baseboard_manufacturer: "Gigabyte Technology Co., Ltd."
+      smbios_baseboard_product: "B550 AORUS ELITE V2"
+      smbios_baseboard_version: "Default string"
+      smbios_baseboard_serial: "Default string"
+      smbios_baseboard_asset: "Default string"
+      smbios_baseboard_location: "Default string"
 
       # MAC Address - Avoid VM vendor prefixes
       # Leave undefined for random Dell MAC (00:1E:C9:XX:XX:XX)
