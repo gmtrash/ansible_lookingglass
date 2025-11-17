@@ -1,11 +1,20 @@
 ---
 # User Preferences - Ask user for configuration choices
 
-- name: Get current user
+- name: Get current user and home directory
   set_fact:
     actual_user: "{{ lookup('env', 'SUDO_USER') | default(ansible_user_id) }}"
-    actual_home: "{{ lookup('env', 'SUDO_USER') | default(ansible_user_id) | expanduser }}"
   become: false
+
+- name: Get user's home directory
+  shell: "getent passwd {{ actual_user }} | cut -d: -f6"
+  register: user_home_result
+  changed_when: false
+  become: false
+
+- name: Set actual home directory
+  set_fact:
+    actual_home: "{{ user_home_result.stdout }}"
 
 - name: Display storage location options
   pause:
@@ -36,7 +45,12 @@
       {%- else -%}
         {{ actual_home }}/libvirt/images
       {%- endif -%}
-  when: lookup('env', 'VM_STORAGE_DIR') == ''
+  when: lookup('env', 'VM_STORAGE_DIR') == '' and storage_choice is defined
+
+- name: Use default storage directory if no choice made
+  set_fact:
+    user_storage_dir: "{{ actual_home }}/libvirt/images"
+  when: lookup('env', 'VM_STORAGE_DIR') == '' and storage_choice is not defined
 
 - name: Use environment variable if set
   set_fact:
