@@ -1,0 +1,12 @@
+---
+# Handlers for network role
+
+- name: apply netplan
+  command: netplan apply
+  become: yes
+
+- name: restart systemd-networkd
+  systemd:
+    name: systemd-networkd
+    state: restarted
+  become: yes

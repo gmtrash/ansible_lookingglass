@@ -1,0 +1,136 @@
+---
+# Network Configuration Tasks
+
+- name: Gather network interface facts
+  setup:
+    gather_subset:
+      - network
+  become: yes
+
+- name: Check if netplan is available
+  stat:
+    path: /etc/netplan
+  register: netplan_dir
+
+- name: Check current netplan configuration
+  find:
+    paths: /etc/netplan
+    patterns: "*.yaml,*.yml"
+  register: netplan_configs
+  when: netplan_dir.stat.exists
+
+- name: Display current netplan files
+  debug:
+    msg: "Found netplan configs: {{ netplan_configs.files | map(attribute='path') | list }}"
+  when: netplan_dir.stat.exists and netplan_configs.matched > 0
+
+- name: Backup existing netplan configuration
+  copy:
+    src: "{{ item.path }}"
+    dest: "{{ item.path }}.backup-{{ ansible_date_time.iso8601_basic_short }}"
+    remote_src: yes
+  with_items: "{{ netplan_configs.files }}"
+  when: netplan_dir.stat.exists and netplan_configs.matched > 0
+  become: yes
+
+- name: Create netplan configuration for macvtap interface
+  template:
+    src: netplan-macvtap.yaml.j2
+    dest: /etc/netplan/60-macvtap.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  become: yes
+  when: netplan_dir.stat.exists
+  notify: apply netplan
+
+- name: Ensure macvtap interface is in netplan config (alternative method)
+  blockinfile:
+    path: /etc/netplan/01-netcfg.yaml
+    create: yes
+    mode: '0600'
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - macvtap"
+    block: |
+      network:
+        version: 2
+        ethernets:
+          enp9s0:
+            dhcp4: true
+            dhcp6: false
+            optional: true
+  become: yes
+  when: not netplan_dir.stat.exists or netplan_configs.matched == 0
+  notify: apply netplan
+
+- name: Apply netplan configuration immediately
+  command: netplan apply
+  become: yes
+  when: netplan_dir.stat.exists
+  register: netplan_apply
+  ignore_errors: yes
+
+- name: Bring up enp9s0 interface manually if netplan failed
+  command: ip link set enp9s0 up
+  become: yes
+  when: netplan_apply is failed or not netplan_dir.stat.exists
+  ignore_errors: yes
+
+- name: Request DHCP lease on enp9s0
+  command: dhclient enp9s0
+  become: yes
+  when: netplan_apply is failed or not netplan_dir.stat.exists
+  ignore_errors: yes
+
+- name: Wait for interface to come up
+  wait_for:
+    timeout: 10
+  delegate_to: localhost
+
+- name: Check interface status
+  command: ip addr show enp9s0
+  register: enp9s0_status
+  changed_when: false
+  failed_when: false
+  become: yes
+
+- name: Display enp9s0 status
+  debug:
+    var: enp9s0_status.stdout_lines
+
+- name: Check if interface got IP address
+  shell: ip addr show enp9s0 | grep -q "inet "
+  register: has_ip
+  changed_when: false
+  failed_when: false
+  become: yes
+
+- name: Report interface status
+  debug:
+    msg: "{{ 'enp9s0 is UP and has IP address' if has_ip.rc == 0 else 'enp9s0 is UP but NO IP address - check DHCP server' }}"
+
+- name: Create systemd-networkd config as fallback
+  copy:
+    dest: /etc/systemd/network/10-enp9s0.network
+    content: |
+      [Match]
+      Name=enp9s0
+
+      [Network]
+      DHCP=ipv4
+
+      [DHCP]
+      RouteMetric=200
+    owner: root
+    group: root
+    mode: '0644'
+  become: yes
+  when: not netplan_dir.stat.exists
+  notify: restart systemd-networkd
+
+- name: Ensure systemd-networkd is enabled
+  systemd:
+    name: systemd-networkd
+    enabled: yes
+    state: started
+  become: yes
+  when: not netplan_dir.stat.exists

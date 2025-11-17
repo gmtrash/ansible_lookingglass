@@ -1,0 +1,20 @@
+---
+# Configure macvtap network interface (enp9s0) for DHCP
+# Usage: ansible-playbook -i inventory network-setup.yml
+
+- name: Configure macvtap network interface
+  hosts: gpu_hosts
+  become: yes
+
+  roles:
+    - network
+
+  post_tasks:
+    - name: Display final network configuration
+      command: ip addr show
+      register: all_interfaces
+      changed_when: false
+
+    - name: Show all interfaces
+      debug:
+        var: all_interfaces.stdout_lines

@@ -1,0 +1,10 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp9s0:
+      dhcp4: true
+      dhcp6: false
+      optional: true
+      dhcp4-overrides:
+        route-metric: 200
