@@ -1,0 +1,177 @@
+---
+# NVIDIA Driver Installation Tasks
+
+- name: Update apt cache
+  apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  become: yes
+
+- name: Fix broken apt dependencies
+  command: apt-get --fix-broken install -y
+  become: yes
+  register: apt_fix_result
+  changed_when: "'0 upgraded, 0 newly installed' not in apt_fix_result.stdout"
+  ignore_errors: yes
+
+- name: Remove any existing NVIDIA packages
+  apt:
+    name:
+      - nvidia-compute-utils-580
+      - nvidia-dkms-580-open
+      - nvidia-driver-580-open
+      - nvidia-firmware-580
+      - nvidia-firmware-580-580.95.05
+      - nvidia-kernel-common-580
+      - nvidia-kernel-source-580-open
+      - nvidia-modprobe
+      - nvidia-persistenced
+      - nvidia-prime
+      - nvidia-settings
+      - nvidia-utils-580
+      - libnvidia-cfg1-580
+      - libnvidia-common-580
+      - libnvidia-compute-580
+      - libnvidia-decode-580
+      - libnvidia-egl-gbm1
+      - libnvidia-egl-wayland1
+      - libnvidia-egl-xcb1
+      - libnvidia-egl-xlib1
+      - libnvidia-encode-580
+      - libnvidia-extra-580
+      - libnvidia-fbc1-580
+      - libnvidia-gl-580
+      - libnvidia-gpucomp-580
+    state: absent
+    purge: yes
+    autoremove: yes
+  become: yes
+  ignore_errors: yes
+
+- name: Run autoremove to clean up dependencies
+  apt:
+    autoremove: yes
+  become: yes
+
+- name: Run autoclean
+  command: apt-get autoclean -y
+  become: yes
+  changed_when: false
+
+- name: Add NVIDIA PPA (if using Ubuntu)
+  apt_repository:
+    repo: ppa:graphics-drivers/ppa
+    state: present
+  become: yes
+  when: ansible_distribution == "Ubuntu"
+  ignore_errors: yes
+
+- name: Update apt cache after adding PPA
+  apt:
+    update_cache: yes
+  become: yes
+
+- name: Install NVIDIA driver
+  apt:
+    name:
+      - nvidia-driver-580
+      - nvidia-dkms-580
+    state: present
+    install_recommends: yes
+  become: yes
+
+- name: Install NVIDIA utilities
+  apt:
+    name:
+      - nvidia-settings
+      - nvidia-utils-580
+    state: present
+  become: yes
+
+- name: Install CUDA toolkit (optional)
+  apt:
+    name:
+      - nvidia-cuda-toolkit
+    state: present
+  become: yes
+  when: install_cuda | default(false)
+
+- name: Create CUDA environment variables
+  lineinfile:
+    path: /etc/environment
+    line: "{{ item }}"
+    create: yes
+  become: yes
+  with_items:
+    - 'PATH="/usr/local/cuda-12.8/bin:$PATH"'
+    - 'LD_LIBRARY_PATH="/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH"'
+  when: install_cuda | default(false)
+
+- name: Add CUDA to user profile
+  lineinfile:
+    path: "{{ ansible_env.HOME }}/.bashrc"
+    line: "{{ item }}"
+    create: yes
+  with_items:
+    - 'export PATH=/usr/local/cuda-12.8/bin:$PATH'
+    - 'export LD_LIBRARY_PATH=/usr/local/cuda-12.8/lib64:$LD_LIBRARY_PATH'
+  when: install_cuda | default(false)
+
+- name: Blacklist nouveau driver
+  copy:
+    dest: /etc/modprobe.d/blacklist-nouveau.conf
+    content: |
+      blacklist nouveau
+      options nouveau modeset=0
+  become: yes
+  notify: update initramfs
+
+- name: Update initramfs
+  command: update-initramfs -u
+  become: yes
+  when: ansible_distribution == "Ubuntu" or ansible_distribution == "Debian"
+
+# FIXED: Use shell module for piping commands instead of command module with literal pipe
+- name: Verify NVIDIA driver installation
+  shell: dpkg -l | grep -i nvidia-driver
+  register: nvidia_verify
+  changed_when: false
+  failed_when: false
+
+- name: Display NVIDIA driver packages
+  debug:
+    var: nvidia_verify.stdout_lines
+  when: nvidia_verify.stdout_lines is defined
+
+- name: Check if nvidia-smi is available
+  command: which nvidia-smi
+  register: nvidia_smi_check
+  changed_when: false
+  failed_when: false
+
+- name: Run nvidia-smi
+  command: nvidia-smi
+  register: nvidia_smi_output
+  changed_when: false
+  failed_when: false
+  when: nvidia_smi_check.rc == 0
+
+- name: Display nvidia-smi output
+  debug:
+    var: nvidia_smi_output.stdout_lines
+  when: nvidia_smi_check.rc == 0 and nvidia_smi_output.stdout_lines is defined
+
+- name: Warn if reboot needed
+  debug:
+    msg: "NVIDIA driver installation complete. A reboot is required for changes to take effect."
+  when: nvidia_verify.rc == 0
+
+- name: Check if reboot is required
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Notify reboot requirement
+  debug:
+    msg: "System requires reboot: /var/run/reboot-required exists"
+  when: reboot_required.stat.exists

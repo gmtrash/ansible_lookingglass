@@ -1,0 +1,7 @@
+---
+# Handlers for NVIDIA role
+
+- name: update initramfs
+  command: update-initramfs -u
+  become: yes
+  listen: "update initramfs"

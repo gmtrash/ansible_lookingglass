@@ -1,0 +1,25 @@
+---
+# Example playbook for installing NVIDIA drivers
+# Usage: ansible-playbook -i inventory nvidia-install.yml
+
+- name: Install NVIDIA drivers on GPU hosts
+  hosts: gpu_hosts
+  become: yes
+
+  vars:
+    install_cuda: false  # Set to true if you need CUDA toolkit
+
+  roles:
+    - nvidia
+
+  post_tasks:
+    - name: Prompt for reboot
+      pause:
+        prompt: "NVIDIA driver installation complete. Press enter to reboot the system, or Ctrl+C to cancel"
+      when: ansible_check_mode == false
+
+    - name: Reboot system
+      reboot:
+        msg: "Rebooting to load NVIDIA drivers"
+        reboot_timeout: 300
+      when: ansible_check_mode == false

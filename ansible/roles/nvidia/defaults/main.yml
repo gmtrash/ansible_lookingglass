@@ -1,0 +1,14 @@
+---
+# Default variables for NVIDIA role
+
+# Set to true to install CUDA toolkit
+install_cuda: false
+
+# NVIDIA driver version (default: 580)
+nvidia_driver_version: "580"
+
+# Whether to add graphics-drivers PPA (Ubuntu only)
+add_nvidia_ppa: true
+
+# Whether to purge existing NVIDIA packages before installation
+purge_existing: true
