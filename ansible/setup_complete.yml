@@ -6,7 +6,6 @@
 
 - name: Complete Looking Glass VFIO Setup
   hosts: localhost
-  become: true
   gather_facts: true
 
   vars:
@@ -17,14 +16,17 @@
     skip_iso_download: "{{ lookup('env', 'SKIP_ISO_DOWNLOAD') | default('false', true) | bool }}"
     auto_start_vm: "{{ lookup('env', 'AUTO_START_VM') | default('true', true) | bool }}"
 
-    # Paths
+    # Paths (iso_dir set by user_preferences.yml)
     project_root: "{{ playbook_dir | dirname }}"
-    install_dir: /usr/local/share/vfio-setup
-    iso_dir: /var/lib/libvirt/images
-    virtio_iso: "{{ iso_dir }}/virtio-win.iso"
-    windows_iso: "{{ iso_dir }}/Win11_23H2.iso"
+    install_dir: "{{ lookup('env', 'HOME') }}/.local/share/vfio-setup"
 
   tasks:
+    - name: "=== PHASE 0: User Preferences ==="
+      debug:
+        msg: "Configuring storage location and preferences..."
+
+    - import_tasks: tasks/user_preferences.yml
+
     - name: "=== PHASE 1: Prerequisites ==="
       debug:
         msg: "Checking system prerequisites and installing packages..."

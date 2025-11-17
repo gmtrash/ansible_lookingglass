@@ -1,0 +1,79 @@
+---
+# User Preferences - Ask user for configuration choices
+
+- name: Get current user
+  set_fact:
+    actual_user: "{{ lookup('env', 'SUDO_USER') | default(ansible_user_id) }}"
+    actual_home: "{{ lookup('env', 'SUDO_USER') | default(ansible_user_id) | expanduser }}"
+  become: false
+
+- name: Display storage location options
+  pause:
+    prompt: |
+
+      ┌────────────────────────────────────────────────────────────┐
+      │         VM Storage Location Configuration                  │
+      └────────────────────────────────────────────────────────────┘
+
+      Where would you like to store VM images and ISOs?
+
+      Options:
+        1. {{ actual_home }}/libvirt/images (user directory - no sudo needed)
+        2. /var/lib/libvirt/images (system directory - requires sudo)
+        3. Custom path
+
+      Enter your choice [1]:
+  register: storage_choice
+  when: lookup('env', 'VM_STORAGE_DIR') == ''
+
+- name: Set storage directory from choice
+  set_fact:
+    user_storage_dir: >-
+      {%- if storage_choice.user_input == '2' -%}
+        /var/lib/libvirt/images
+      {%- elif storage_choice.user_input == '3' -%}
+        {{ lookup('pipe', 'echo -n "Enter custom path: " >&2 && read path && echo $path') }}
+      {%- else -%}
+        {{ actual_home }}/libvirt/images
+      {%- endif -%}
+  when: lookup('env', 'VM_STORAGE_DIR') == ''
+
+- name: Use environment variable if set
+  set_fact:
+    user_storage_dir: "{{ lookup('env', 'VM_STORAGE_DIR') }}"
+  when: lookup('env', 'VM_STORAGE_DIR') != ''
+
+- name: Expand storage directory path
+  set_fact:
+    iso_dir: "{{ user_storage_dir | expanduser }}"
+    virtio_iso: "{{ user_storage_dir | expanduser }}/virtio-win.iso"
+    windows_iso: "{{ user_storage_dir | expanduser }}/Win11_23H2.iso"
+
+- name: Determine if sudo is needed for storage
+  set_fact:
+    storage_needs_sudo: "{{ not iso_dir.startswith(actual_home) }}"
+
+- name: Display chosen storage location
+  debug:
+    msg:
+      - "Storage directory: {{ iso_dir }}"
+      - "Requires sudo: {{ storage_needs_sudo }}"
+      - "Operations will run as: {{ 'root' if storage_needs_sudo else actual_user }}"
+
+- name: Create storage directory (user)
+  file:
+    path: "{{ iso_dir }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ actual_user }}"
+    group: "{{ actual_user }}"
+  become: false
+  when: not storage_needs_sudo
+
+- name: Create storage directory (sudo)
+  file:
+    path: "{{ iso_dir }}"
+    state: directory
+    mode: '0755'
+  become: true
+  when: storage_needs_sudo

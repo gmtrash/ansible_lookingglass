@@ -1,23 +1,29 @@
 ---
 # Download ISOs - VirtIO drivers and Windows 11
 
-- name: Create ISO directory
-  file:
-    path: "{{ iso_dir }}"
-    state: directory
-    mode: '0755'
+# Note: ISO directory already created by user_preferences.yml
 
 - name: Check if VirtIO ISO exists
   stat:
     path: "{{ virtio_iso }}"
   register: virtio_stat
+  become: false
 
-- name: Download VirtIO drivers
+- name: Download VirtIO drivers (user directory)
   get_url:
     url: "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
     dest: "{{ virtio_iso }}"
     mode: '0644'
-  when: not virtio_stat.stat.exists
+  when: not virtio_stat.stat.exists and not storage_needs_sudo
+  become: false
+
+- name: Download VirtIO drivers (system directory)
+  get_url:
+    url: "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
+    dest: "{{ virtio_iso }}"
+    mode: '0644'
+  when: not virtio_stat.stat.exists and storage_needs_sudo
+  become: true
 
 - name: Check if Windows ISO exists
   stat:

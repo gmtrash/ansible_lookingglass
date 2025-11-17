@@ -15,36 +15,37 @@ echo -e "${CYAN}╔════════════════════�
 echo -e "${CYAN}║     Looking Glass VFIO Setup - Automated Installation     ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}\n"
 
-# Check root
-if [[ $EUID -ne 0 ]]; then
-    echo -e "${YELLOW}[WARN]${NC} This script needs sudo privileges"
-    echo -e "Re-running with sudo..."
-    exec sudo bash "$0" "$@"
-fi
-
 # Check for ansible
 if ! command -v ansible-playbook &>/dev/null; then
-    echo -e "${GREEN}[SETUP]${NC} Installing Ansible..."
+    echo -e "${YELLOW}[INFO]${NC} Ansible not found - installing..."
+    echo -e "${YELLOW}[INFO]${NC} This requires sudo privileges\n"
 
     if command -v apt &>/dev/null; then
-        apt update
-        apt install -y ansible
+        sudo apt update
+        sudo apt install -y ansible
     elif command -v dnf &>/dev/null; then
-        dnf install -y ansible
+        sudo dnf install -y ansible
     elif command -v pacman &>/dev/null; then
-        pacman -Sy --noconfirm ansible
+        sudo pacman -Sy --noconfirm ansible
     else
         echo -e "${YELLOW}[ERROR]${NC} Could not install Ansible automatically"
-        echo "Please install Ansible manually and re-run this script"
+        echo "Please install Ansible manually:"
+        echo "  Ubuntu/Debian: sudo apt install ansible"
+        echo "  Fedora/RHEL:   sudo dnf install ansible"
+        echo "  Arch:          sudo pacman -S ansible"
         exit 1
     fi
+    echo -e "${GREEN}[OK]${NC} Ansible installed\n"
+else
+    echo -e "${GREEN}[OK]${NC} Ansible found\n"
 fi
 
-echo -e "${GREEN}[OK]${NC} Ansible installed"
-echo -e "${CYAN}[RUN]${NC} Starting automated setup...\n"
+echo -e "${CYAN}[INFO]${NC} Starting automated setup..."
+echo -e "${CYAN}[INFO]${NC} You will be prompted for sudo password when needed\n"
 
 # Change to ansible directory
 cd "$(dirname "$0")/ansible"
 
 # Run the main playbook
+# -K asks for sudo password (only used when tasks need it)
 ansible-playbook setup_complete.yml -K "$@"
