@@ -1,70 +1,15 @@
 ---
-# Configure Host - Hugepages and system settings
+# Configure Host - Verify system settings (actual config done in setup.sh)
 
 - name: Calculate hugepages count
   set_fact:
     hugepages_needed: "{{ (vm_memory_gb | int * 1024 / 2) | int }}"
 
-- name: Check current hugepages allocation
-  shell: cat /proc/sys/vm/nr_hugepages
-  register: hugepages_current
-  changed_when: false
-  become: false
-
-- name: Check if hugepages mount exists
-  shell: mount | grep -q hugetlbfs
-  register: hugepages_mounted
-  changed_when: false
-  failed_when: false
-  become: false
-
-- name: Configure hugepages (runtime)
-  sysctl:
-    name: vm.nr_hugepages
-    value: "{{ hugepages_needed }}"
-    state: present
-    sysctl_set: true
-  become: true
-  when: hugepages_current.stdout | int < hugepages_needed | int
-
-- name: Make hugepages persistent
-  lineinfile:
-    path: /etc/sysctl.conf
-    line: "vm.nr_hugepages = {{ hugepages_needed }}"
-    regexp: '^vm.nr_hugepages'
-    create: true
-  become: true
-  when: hugepages_current.stdout | int < hugepages_needed | int
-
 - name: Verify hugepages allocation
   shell: cat /proc/sys/vm/nr_hugepages
   register: hugepages_actual
   changed_when: false
-  become: false
 
 - name: Display hugepages status
   debug:
-    msg: "Hugepages: {{ hugepages_actual.stdout }} / {{ hugepages_needed }} ({{ '✓ OK' if hugepages_actual.stdout | int >= hugepages_needed | int else '⚠ Insufficient' }})"
-
-- name: Create hugepages mount point
-  file:
-    path: /dev/hugepages
-    state: directory
-    mode: '0755'
-  become: true
-  when: hugepages_mounted.rc != 0
-
-- name: Mount hugepages
-  mount:
-    path: /dev/hugepages
-    src: hugetlbfs
-    fstype: hugetlbfs
-    opts: "mode=1770,gid={{ ansible_env.USER | default(ansible_user_id) }}"
-    state: mounted
-  become: true
-  when: hugepages_mounted.rc != 0
-
-- name: Display hugepages mount status
-  debug:
-    msg: "✓ Hugepages already mounted"
-  when: hugepages_mounted.rc == 0
+    msg: "Hugepages: {{ hugepages_actual.stdout }} / {{ hugepages_needed }} ({{ '✓ OK' if hugepages_actual.stdout | int >= hugepages_needed | int else '⚠ Insufficient - run setup.sh to configure' }})"

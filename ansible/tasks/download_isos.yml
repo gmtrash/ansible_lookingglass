@@ -9,21 +9,12 @@
   register: virtio_stat
   become: false
 
-- name: Download VirtIO drivers (user directory)
+- name: Download VirtIO drivers
   get_url:
     url: "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
     dest: "{{ virtio_iso }}"
     mode: '0644'
-  when: not virtio_stat.stat.exists and not storage_needs_sudo
-  become: false
-
-- name: Download VirtIO drivers (system directory)
-  get_url:
-    url: "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
-    dest: "{{ virtio_iso }}"
-    mode: '0644'
-  when: not virtio_stat.stat.exists and storage_needs_sudo
-  become: true
+  when: not virtio_stat.stat.exists
 
 - name: Check if Windows ISO exists
   stat:

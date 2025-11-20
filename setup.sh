@@ -87,6 +87,32 @@ fi
 
 echo -e "${CYAN}[INFO]${NC} Starting automated setup...\n"
 
+# Configure hugepages if needed (for 16GB VM = 8192 hugepages)
+VM_MEMORY_GB=${VM_MEMORY_GB:-16}
+HUGEPAGES_NEEDED=$(( VM_MEMORY_GB * 1024 / 2 ))
+HUGEPAGES_CURRENT=$(cat /proc/sys/vm/nr_hugepages 2>/dev/null || echo "0")
+
+if [ "$HUGEPAGES_CURRENT" -lt "$HUGEPAGES_NEEDED" ]; then
+    echo -e "${YELLOW}[INFO]${NC} Configuring hugepages (need $HUGEPAGES_NEEDED, have $HUGEPAGES_CURRENT)..."
+    sudo sysctl -w vm.nr_hugepages=$HUGEPAGES_NEEDED
+    if ! grep -q "^vm.nr_hugepages" /etc/sysctl.conf 2>/dev/null; then
+        echo "vm.nr_hugepages = $HUGEPAGES_NEEDED" | sudo tee -a /etc/sysctl.conf >/dev/null
+    fi
+    echo -e "${GREEN}[OK]${NC} Hugepages configured\n"
+else
+    echo -e "${GREEN}[OK]${NC} Hugepages already configured ($HUGEPAGES_CURRENT >= $HUGEPAGES_NEEDED)\n"
+fi
+
+# Ensure libvirtd is running
+if ! systemctl is-active --quiet libvirtd; then
+    echo -e "${YELLOW}[INFO]${NC} Starting libvirtd service..."
+    sudo systemctl start libvirtd
+    sudo systemctl enable libvirtd
+    echo -e "${GREEN}[OK]${NC} libvirtd started\n"
+else
+    echo -e "${GREEN}[OK]${NC} libvirtd is running\n"
+fi
+
 # Change to ansible directory
 cd "$(dirname "$0")/ansible"
 
