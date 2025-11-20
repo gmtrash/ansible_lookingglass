@@ -71,12 +71,17 @@
   register: baseboard_detect
   changed_when: false
 
-- name: Parse SMBIOS information
+- name: Parse BIOS information
   set_fact:
-    detected_smbios:
-      bios: "{{ bios_detect.stdout | from_yaml }}"
-      system: "{{ system_detect.stdout | from_yaml }}"
-      baseboard: "{{ baseboard_detect.stdout | from_yaml }}"
+    bios_info: "{{ dict(bios_detect.stdout_lines | map('split', '=') | list) }}"
+
+- name: Parse System information
+  set_fact:
+    system_info: "{{ dict(system_detect.stdout_lines | map('split', '=') | list) }}"
+
+- name: Parse Baseboard information
+  set_fact:
+    baseboard_info: "{{ dict(baseboard_detect.stdout_lines | map('split', '=') | list) }}"
 
 - name: Save hardware detection results
   copy:
@@ -91,20 +96,20 @@
       cpu_cores: {{ detected_cpu_cores }}
 
       # SMBIOS Information
-      smbios_bios_vendor: "{{ detected_smbios.bios.vendor }}"
-      smbios_bios_version: "{{ detected_smbios.bios.version }}"
-      smbios_bios_date: "{{ detected_smbios.bios.date }}"
+      smbios_bios_vendor: "{{ bios_info.vendor }}"
+      smbios_bios_version: "{{ bios_info.version }}"
+      smbios_bios_date: "{{ bios_info.date }}"
 
-      smbios_system_manufacturer: "{{ detected_smbios.system.manufacturer }}"
-      smbios_system_product: "{{ detected_smbios.system.product }}"
-      smbios_system_version: "{{ detected_smbios.system.version }}"
-      smbios_system_serial: "{{ detected_smbios.system.serial }}"
-      smbios_system_uuid: "{{ detected_smbios.system.uuid }}"
-      smbios_system_family: "{{ detected_smbios.system.family }}"
+      smbios_system_manufacturer: "{{ system_info.manufacturer }}"
+      smbios_system_product: "{{ system_info.product }}"
+      smbios_system_version: "{{ system_info.version }}"
+      smbios_system_serial: "{{ system_info.serial }}"
+      smbios_system_uuid: "{{ system_info.uuid }}"
+      smbios_system_family: "{{ system_info.family }}"
 
-      smbios_baseboard_manufacturer: "{{ detected_smbios.baseboard.manufacturer }}"
-      smbios_baseboard_product: "{{ detected_smbios.baseboard.product }}"
-      smbios_baseboard_version: "{{ detected_smbios.baseboard.version }}"
-      smbios_baseboard_serial: "{{ detected_smbios.baseboard.serial }}"
-      smbios_baseboard_asset: "{{ detected_smbios.baseboard.asset }}"
+      smbios_baseboard_manufacturer: "{{ baseboard_info.manufacturer }}"
+      smbios_baseboard_product: "{{ baseboard_info.product }}"
+      smbios_baseboard_version: "{{ baseboard_info.version }}"
+      smbios_baseboard_serial: "{{ baseboard_info.serial }}"
+      smbios_baseboard_asset: "{{ baseboard_info.asset }}"
     mode: '0644'
