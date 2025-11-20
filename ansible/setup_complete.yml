@@ -8,6 +8,7 @@
   hosts: localhost
   connection: local
   gather_facts: true
+  become: false  # Don't use sudo by default, only on tasks that need it
 
   vars:
     # Default configuration (can be overridden)

@@ -50,8 +50,8 @@ echo -e "${CYAN}[INFO]${NC} Starting automated setup...\n"
 cd "$(dirname "$0")/ansible"
 
 # Run without -K since we've pre-authenticated sudo
-# Use --become to enable sudo when tasks need it
-ansible-playbook setup_complete.yml --become "$@"
+# Individual tasks use become: true when they need sudo
+ansible-playbook setup_complete.yml "$@"
 
 # Kill the sudo keep-alive loop
 kill $SUDO_LOOP_PID 2>/dev/null || true
