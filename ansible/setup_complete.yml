@@ -6,6 +6,7 @@
 
 - name: Complete Looking Glass VFIO Setup
   hosts: localhost
+  connection: local
   gather_facts: true
 
   vars:
