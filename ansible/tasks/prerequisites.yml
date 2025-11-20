@@ -1,6 +1,20 @@
 ---
 # Prerequisites - Check and install required packages
 
+- name: Check if required packages are installed
+  shell: |
+    for pkg in qemu-kvm libvirt-daemon-system libvirt-clients virt-manager ovmf; do
+      if ! dpkg -l | grep -q "^ii  $pkg"; then
+        echo "missing"
+        exit 0
+      fi
+    done
+    echo "installed"
+  register: packages_check
+  changed_when: false
+  failed_when: false
+  become: false
+
 - name: Install QEMU/KVM and virtualization packages
   package:
     name:
@@ -19,6 +33,8 @@
     state: present
   register: package_install
   failed_when: false
+  become: true
+  when: "'missing' in packages_check.stdout"
 
 - name: Install packages (alternative names for Fedora/RHEL)
   package:
@@ -35,7 +51,13 @@
       - wget
       - curl
     state: present
-  when: package_install is failed
+  become: true
+  when: package_install is failed and "'missing' in packages_check.stdout"
+
+- name: Display package status
+  debug:
+    msg: "✓ All required packages already installed"
+  when: "'installed' in packages_check.stdout"
 
 - name: Check if IOMMU groups exist (reliable non-root check)
   stat:
