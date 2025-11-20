@@ -13,12 +13,17 @@
     - "{{ install_dir }}/config"
   become: false
 
+- name: Check if VFIO library exists
+  stat:
+    path: "{{ project_root }}/lib/vfio-common.sh"
+  register: vfio_lib
+
 - name: Copy VFIO library
   copy:
     src: "{{ project_root }}/lib/vfio-common.sh"
     dest: "{{ install_dir }}/lib/vfio-common.sh"
     mode: '0755'
-  when: project_root + '/lib/vfio-common.sh' is file
+  when: vfio_lib.stat.exists
 
 - name: Copy VFIO scripts
   copy:
@@ -28,7 +33,7 @@
   loop:
     - "{{ project_root }}/scripts/vfio-start"
     - "{{ project_root }}/scripts/vfio-stop"
-  when: item is file
+  ignore_errors: true
 
 - name: Display hook installation info
   debug:
