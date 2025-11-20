@@ -90,16 +90,54 @@
   failed_when: false
   changed_when: false
 
+- name: Prompt if VM already exists
+  pause:
+    prompt: |
+
+      ┌────────────────────────────────────────────────────────────┐
+      │              EXISTING VM DETECTED                          │
+      └────────────────────────────────────────────────────────────┘
+
+      A VM named '{{ vm_name }}' already exists!
+
+      WARNING: Continuing will DESTROY and REPLACE the existing VM.
+      This will remove the current VM definition but keep the disk image.
+
+      What would you like to do?
+        1. Replace existing VM (destroy old, create new definition)
+        2. Skip VM creation (keep existing VM as-is)
+        3. Abort setup (Ctrl+C)
+
+      Enter your choice [2]:
+  register: vm_replace_choice
+  when: vm_exists.rc == 0 and lookup('env', 'AUTO_REPLACE_VM') == ''
+
+- name: Set VM replacement decision from choice
+  set_fact:
+    should_replace_vm: "{{ vm_replace_choice.user_input == '1' }}"
+  when: vm_exists.rc == 0 and vm_replace_choice is defined
+
+- name: Use environment variable for replacement decision
+  set_fact:
+    should_replace_vm: "{{ lookup('env', 'AUTO_REPLACE_VM') | bool }}"
+  when: vm_exists.rc == 0 and lookup('env', 'AUTO_REPLACE_VM') != ''
+
+- name: Default to not replacing if no choice made
+  set_fact:
+    should_replace_vm: false
+  when: vm_exists.rc == 0 and should_replace_vm is not defined
+
 - name: Undefine existing VM
   shell: |
     virsh destroy {{ vm_name }} 2>/dev/null || true
     virsh undefine {{ vm_name }} --nvram 2>/dev/null || true
-  when: vm_exists.rc == 0
+  when: vm_exists.rc == 0 and should_replace_vm
 
 - name: Define VM in libvirt
   shell: virsh define "{{ install_dir }}/{{ vm_name }}.xml"
   register: vm_define
   changed_when: true
+  when: vm_exists.rc != 0 or (should_replace_vm | default(false))
 
 - name: Verify VM is defined
   shell: virsh list --all --name
@@ -107,7 +145,7 @@
   changed_when: false
   failed_when: vm_name not in vm_list.stdout
 
-- name: Display VM creation status
+- name: Display VM creation status (new VM)
   debug:
     msg:
       - "✓ VM '{{ vm_name }}' created successfully"
@@ -118,3 +156,24 @@
       - "✓ GPU: {{ hw.gpu_pci_video }}"
       - "✓ Hypervisor hiding: ENABLED"
       - "✓ SMBIOS spoofing: {{ hw.smbios_system_manufacturer }} {{ hw.smbios_system_product }}"
+  when: vm_exists.rc != 0
+
+- name: Display VM replacement status
+  debug:
+    msg:
+      - "✓ VM '{{ vm_name }}' replaced successfully"
+      - "✓ Old definition removed, new definition applied"
+      - "✓ Disk preserved: {{ iso_dir }}/{{ vm_name }}.qcow2"
+      - "✓ XML: {{ install_dir }}/{{ vm_name }}.xml"
+      - "✓ Memory: {{ vm_memory_gb }}GB ({{ hugepages_needed }} hugepages)"
+      - "✓ CPUs: {{ vm_vcpus }} cores"
+      - "✓ GPU: {{ hw.gpu_pci_video }}"
+  when: vm_exists.rc == 0 and (should_replace_vm | default(false))
+
+- name: Display VM skip status
+  debug:
+    msg:
+      - "⊘ VM creation skipped - '{{ vm_name }}' already exists"
+      - "⊘ Keeping existing VM definition as-is"
+      - "  You can manually update the VM or set AUTO_REPLACE_VM=true"
+  when: vm_exists.rc == 0 and not (should_replace_vm | default(false))

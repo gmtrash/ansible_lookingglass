@@ -120,13 +120,16 @@ git clone https://github.com/yourusername/ansible_lookingglass.git
 cd ansible_lookingglass
 
 # Run automated setup
-sudo ./setup.sh
+./setup.sh
 ```
 
-**What it does (7 automated phases):**
+**Note:** The script will prompt for sudo password only when needed (package installation, system configuration). By default, it stores VM files in `$HOME/libvirt/images` to avoid unnecessary privilege escalation.
+
+**What it does (8 automated phases):**
 
 | Phase | Tasks | Duration |
 |-------|-------|----------|
+| **0. User Preferences** | Ask storage location, configure paths | ~5 sec |
 | **1. Prerequisites** | Install qemu-kvm, libvirt, virt-manager, verify IOMMU | ~2 min |
 | **2. Hardware Detection** | Auto-detect GPU, CPU, SMBIOS (BIOS/motherboard info) | ~5 sec |
 | **3. Download ISOs** | Download VirtIO drivers, prompt for Windows 11 ISO | ~1 min |
@@ -143,14 +146,36 @@ The script is **fully idempotent** (safe to run multiple times) and uses Ansible
 
 ```bash
 # Custom VM name and specs
-sudo VM_NAME=gaming VM_MEMORY_GB=32 VM_VCPUS=16 ./setup.sh
+VM_NAME=gaming VM_MEMORY_GB=32 VM_VCPUS=16 ./setup.sh
+
+# Custom storage location (defaults to user home directory)
+VM_STORAGE_DIR=$HOME/libvirt/images ./setup.sh
+
+# Use system directory (requires sudo for file operations)
+VM_STORAGE_DIR=/var/lib/libvirt/images ./setup.sh
+
+# Automatically replace existing VM without prompting
+AUTO_REPLACE_VM=true ./setup.sh
 
 # Skip auto-start (create VM without starting)
-sudo AUTO_START_VM=false ./setup.sh
+AUTO_START_VM=false ./setup.sh
 
 # Skip Windows ISO check
-sudo SKIP_ISO_DOWNLOAD=true WINDOWS_ISO=/path/to/win11.iso ./setup.sh
+SKIP_ISO_DOWNLOAD=true WINDOWS_ISO=/path/to/win11.iso ./setup.sh
 ```
+
+**Environment Variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VM_NAME` | `win11` | Name of the VM to create |
+| `VM_MEMORY_GB` | `16` | RAM allocation in GB |
+| `VM_VCPUS` | `12` | Number of CPU cores |
+| `VM_STORAGE_DIR` | Interactive prompt | Storage directory for ISOs and disk images |
+| `AUTO_REPLACE_VM` | `false` | Replace existing VM without prompting |
+| `AUTO_START_VM` | `true` | Start VM after creation |
+| `SKIP_ISO_DOWNLOAD` | `false` | Skip Windows ISO download check |
+| `WINDOWS_ISO` | Auto-detected | Path to Windows 11 ISO file |
 
 ---
 
