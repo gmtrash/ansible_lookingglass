@@ -92,6 +92,13 @@
     name: libvirtd
     state: started
     enabled: true
+  become: true
+
+- name: Check current user's group membership
+  shell: groups "{{ ansible_env.USER | default(ansible_user_id) }}"
+  register: user_groups
+  changed_when: false
+  become: false
 
 - name: Add current user to libvirt groups
   user:
@@ -99,3 +106,9 @@
     groups: libvirt,kvm
     append: true
   become: true
+  when: "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
+
+- name: Display group membership status
+  debug:
+    msg: "✓ User '{{ ansible_env.USER }}' already in libvirt and kvm groups"
+  when: "'libvirt' in user_groups.stdout and 'kvm' in user_groups.stdout"
