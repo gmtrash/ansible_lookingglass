@@ -87,12 +87,25 @@
       Press Ctrl+C to abort, or Enter to continue anyway...
   when: not iommu_enabled
 
+- name: Check if libvirtd is running
+  shell: systemctl is-active libvirtd
+  register: libvirtd_status
+  failed_when: false
+  changed_when: false
+  become: false
+
 - name: Ensure libvirtd is running
   systemd:
     name: libvirtd
     state: started
     enabled: true
   become: true
+  when: libvirtd_status.rc != 0
+
+- name: Display libvirtd status
+  debug:
+    msg: "✓ libvirtd already running"
+  when: libvirtd_status.rc == 0
 
 - name: Check current user's group membership
   shell: groups "{{ ansible_env.USER | default(ansible_user_id) }}"
