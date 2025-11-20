@@ -1,0 +1,69 @@
+---
+# Download ISOs - VirtIO drivers and Windows 11
+
+# Note: ISO directory already created by user_preferences.yml
+
+- name: Check if VirtIO ISO exists
+  stat:
+    path: "{{ virtio_iso }}"
+  register: virtio_stat
+  become: false
+
+- name: Download VirtIO drivers (user directory)
+  get_url:
+    url: "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
+    dest: "{{ virtio_iso }}"
+    mode: '0644'
+  when: not virtio_stat.stat.exists and not storage_needs_sudo
+  become: false
+
+- name: Download VirtIO drivers (system directory)
+  get_url:
+    url: "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
+    dest: "{{ virtio_iso }}"
+    mode: '0644'
+  when: not virtio_stat.stat.exists and storage_needs_sudo
+  become: true
+
+- name: Check if Windows ISO exists
+  stat:
+    path: "{{ windows_iso }}"
+  register: windows_stat
+
+- name: Prompt for Windows 11 ISO
+  pause:
+    prompt: |
+
+      ┌────────────────────────────────────────────────────────────┐
+      │          Windows 11 ISO Required                           │
+      └────────────────────────────────────────────────────────────┘
+
+      Windows 11 ISO not found at: {{ windows_iso }}
+
+      Please download Windows 11 ISO:
+      1. Visit: https://www.microsoft.com/software-download/windows11
+      2. Download the ISO file
+      3. Save it to: {{ windows_iso }}
+
+      Or specify a different path with:
+        export WINDOWS_ISO=/path/to/your/Win11.iso
+
+      Press Enter when the ISO is ready, or Ctrl+C to abort...
+  when: not windows_stat.stat.exists and not skip_iso_download
+
+- name: Check Windows ISO again after prompt
+  stat:
+    path: "{{ windows_iso }}"
+  register: windows_stat_final
+  when: not skip_iso_download
+
+- name: Fail if Windows ISO still missing
+  fail:
+    msg: "Windows 11 ISO not found at {{ windows_iso }}"
+  when: not windows_stat_final.stat.exists and not skip_iso_download
+
+- name: Display ISO status
+  debug:
+    msg:
+      - "VirtIO ISO: {{ '✓ Found' if virtio_stat.stat.exists else '✓ Downloaded' }}"
+      - "Windows ISO: {{ '✓ Found' if windows_stat.stat.exists else '⚠ Skipped' if skip_iso_download else '✓ Ready' }}"

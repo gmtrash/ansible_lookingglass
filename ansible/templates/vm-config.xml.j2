@@ -1,0 +1,318 @@
+<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+  <name>{{ vm_name }}</name>
+  <uuid>{{ lookup('pipe', 'uuidgen') }}</uuid>
+  <metadata>
+    <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
+      <libosinfo:os id="http://microsoft.com/win/11"/>
+    </libosinfo:libosinfo>
+  </metadata>
+
+  <!-- Memory: {{ vm_memory_gb }}GB -->
+  <memory unit='KiB'>{{ (vm_memory_gb | int * 1024 * 1024) }}</memory>
+  <currentMemory unit='KiB'>{{ (vm_memory_gb | int * 1024 * 1024) }}</currentMemory>
+
+  <memoryBacking>
+{% if enable_hugepages | default(false) %}
+    <hugepages/>
+{% endif %}
+    <nosharepages/>
+    <locked/>
+    <source type='memfd'/>
+    <access mode='shared'/>
+  </memoryBacking>
+
+  <!-- CPU Configuration -->
+  <vcpu placement="static">{{ vm_vcpus }}</vcpu>
+  <iothreads>1</iothreads>
+
+  <cputune>
+{% for i in range(vm_vcpus | int) %}
+    <vcpupin vcpu="{{ i }}" cpuset="{{ vm_cpu_cores.split('-')[0] | int + i }}"/>
+{% endfor %}
+    <emulatorpin cpuset='{{ host_cpu_cores }}'/>
+    <iothreadpin iothread='1' cpuset='{{ host_cpu_cores }}'/>
+  </cputune>
+
+  <!-- SMBIOS Information - Use real host values to avoid VM detection -->
+  <sysinfo type='smbios'>
+    <bios>
+      <entry name='vendor'>{{ smbios_bios_vendor | default('American Megatrends International, LLC.') }}</entry>
+      <entry name='version'>{{ smbios_bios_version | default('F20') }}</entry>
+      <entry name='date'>{{ smbios_bios_date | default('12/15/2023') }}</entry>
+    </bios>
+    <system>
+      <entry name='manufacturer'>{{ smbios_system_manufacturer | default('ASUS') }}</entry>
+      <entry name='product'>{{ smbios_system_product | default('System Product Name') }}</entry>
+      <entry name='version'>{{ smbios_system_version | default('1.0') }}</entry>
+      <entry name='serial'>{{ smbios_system_serial | default('System Serial Number') }}</entry>
+      <entry name='sku'>{{ smbios_system_sku | default('SKU') }}</entry>
+      <entry name='family'>{{ smbios_system_family | default('Desktop') }}</entry>
+    </system>
+    <baseboard>
+      <entry name='manufacturer'>{{ smbios_baseboard_manufacturer | default(smbios_system_manufacturer | default('ASUS')) }}</entry>
+      <entry name='product'>{{ smbios_baseboard_product | default(smbios_system_product | default('PRIME X570-PRO')) }}</entry>
+      <entry name='version'>{{ smbios_baseboard_version | default('Rev X.0x') }}</entry>
+      <entry name='serial'>{{ smbios_baseboard_serial | default('Default string') }}</entry>
+      <entry name='asset'>{{ smbios_baseboard_asset | default('Default string') }}</entry>
+      <entry name='location'>{{ smbios_baseboard_location | default('Default string') }}</entry>
+    </baseboard>
+  </sysinfo>
+
+  <!-- Boot Configuration -->
+  <os>
+    <type arch='x86_64' machine='pc-q35-8.1'>hvm</type>
+    <loader readonly='yes' type='pflash'>/usr/share/OVMF/OVMF_CODE.secboot.fd</loader>
+    <nvram template='/usr/share/OVMF/OVMF_VARS.fd'>/var/lib/libvirt/qemu/nvram/{{ vm_name }}_VARS.fd</nvram>
+    <boot dev='hd'/>
+    <bootmenu enable='no'/>
+    <smbios mode='sysinfo'/>
+  </os>
+
+  <!-- Features - VM Detection Evasion -->
+  <features>
+    <acpi/>
+    <apic/>
+    <!-- Hyper-V Enlightenments - Makes Windows think it's running on Hyper-V (Microsoft's hypervisor) -->
+    <hyperv mode='{{ hyperv_mode | default("custom") }}'>
+      <relaxed state='on'/>
+      <vapic state='on'/>
+      <spinlocks state='on' retries='8191'/>
+      <vpindex state='on'/>
+      <runtime state='on'/>
+      <synic state='on'/>
+      <stimer state='on'>
+        <direct state='on'/>
+      </stimer>
+      <reset state='on'/>
+      <!-- Custom vendor ID to hide KVM signature -->
+      <vendor_id state='on' value='{{ hyperv_vendor_id | default("GenuineIntel") }}'/>
+      <frequencies state='on'/>
+      <reenlightenment state='on'/>
+      <tlbflush state='on'/>
+{% if vm_cpu_cores_per_die | int > 1 %}
+      <ipi state='on'/>
+{% endif %}
+    </hyperv>
+    <!-- Disable VMware backdoor port -->
+    <vmport state='off'/>
+    <!-- Disable Performance Monitoring Unit - can leak VM info -->
+    <pmu state='off'/>
+    <!-- Hide KVM from CPUID -->
+    <kvm>
+      <hidden state='on'/>
+    </kvm>
+  </features>
+
+  <!-- CPU Passthrough with VM Detection Evasion -->
+  <cpu mode='host-passthrough' check='none' migratable='off'>
+    <topology sockets='{{ vm_cpu_sockets }}' dies='{{ vm_cpu_dies }}' cores='{{ vm_cpu_cores_per_die }}' threads='{{ vm_cpu_threads }}'/>
+    <!-- Hide hypervisor presence from CPUID -->
+    <feature policy='disable' name='hypervisor'/>
+    <!-- Invariant TSC for consistent timing -->
+    <feature policy='require' name='invtsc'/>
+{% if 'AMD' in ansible_processor[0] | default('') %}
+    <!-- AMD-specific features -->
+    <feature policy='require' name='topoext'/>
+    <feature policy='disable' name='svm'/>
+{% else %}
+    <!-- Intel-specific features -->
+    <feature policy='disable' name='vmx'/>
+{% endif %}
+{% if disable_x2apic | default(false) %}
+    <!-- Disable x2APIC if causing issues with anti-cheat -->
+    <feature policy='disable' name='x2apic'/>
+{% endif %}
+    <!-- CPU cache passthrough for better performance and less VM fingerprinting -->
+    <cache mode='passthrough'/>
+  </cpu>
+
+  <!-- Clock Configuration - Important for VM detection evasion -->
+  <clock offset='localtime'>
+    <timer name='rtc' tickpolicy='catchup'/>
+    <timer name='pit' tickpolicy='delay'/>
+    <!-- Disable HPET - can be used for VM detection -->
+    <timer name='hpet' present='no'/>
+    <!-- Native TSC for accurate timing -->
+    <timer name='tsc' present='yes' mode='native'/>
+    <!-- Hyper-V reference time -->
+    <timer name='hypervclock' present='yes'/>
+  </clock>
+
+  <!-- Power Management -->
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <pm>
+    <suspend-to-mem enabled='no'/>
+    <suspend-to-disk enabled='no'/>
+  </pm>
+
+  <!-- Devices -->
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+
+    <!-- Primary Disk -->
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2"/>
+      <source file="{{ vm_disk_path }}"/>
+      <target dev="sda" bus="sata"/>
+    </disk>
+
+{% for disk in passthrough_disks | default([]) %}
+    <!-- Passthrough Disk: {{ disk.description | default('') }} -->
+    <disk type='block' device='disk'>
+      <driver name='qemu' type='raw' cache='none' io='native' discard='unmap'/>
+      <source dev='{{ disk.device }}'/>
+      <target dev='{{ disk.target }}' bus='{{ disk.bus }}'/>
+    </disk>
+{% endfor %}
+
+    <!-- Controllers -->
+    <controller type='usb' index='0' model='nec-xhci' ports='15'>
+      <address type='pci' domain='0x0000' bus='0x03' slot='0x00' function='0x0'/>
+    </controller>
+    <controller type='pci' index='0' model='pcie-root'/>
+    <controller type='pci' index='1' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='1' port='0x10'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x0' multifunction='on'/>
+    </controller>
+    <controller type='pci' index='2' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='2' port='0x11'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x1'/>
+    </controller>
+    <controller type='pci' index='3' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='3' port='0x12'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x2'/>
+    </controller>
+    <controller type='pci' index='4' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='4' port='0x13'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x02' function='0x3'/>
+    </controller>
+    <controller type='sata' index='0'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x1f' function='0x2'/>
+    </controller>
+    <controller type='virtio-serial' index='0'>
+      <address type='pci' domain='0x0000' bus='0x04' slot='0x00' function='0x0'/>
+    </controller>
+
+    <!-- Network - Use realistic MAC address to avoid VM detection -->
+    <interface type='bridge'>
+{% if custom_mac_address is defined %}
+      <mac address='{{ custom_mac_address }}'/>
+{% else %}
+      <!-- Default to Intel NIC MAC prefix (avoid 52:54:00 QEMU default) -->
+      <mac address='{{ vm_mac_address | default("00:1E:C9:" + "%02x:%02x:%02x" | format(range(0,256)|random, range(0,256)|random, range(0,256)|random)) }}'/>
+{% endif %}
+      <source bridge='{{ bridge_name | default("br0") }}'/>
+      <model type='virtio'/>
+    </interface>
+
+    <!-- SPICE Channel -->
+    <channel type='spicevmc'>
+      <target type='virtio' name='com.redhat.spice.0'/>
+      <address type='virtio-serial' controller='0' bus='0' port='1'/>
+    </channel>
+
+    <!-- Input Devices -->
+{% if passthrough_keyboard is defined and passthrough_keyboard %}
+    <input type='evdev'>
+      <source dev='{{ passthrough_keyboard }}' grab='all' grabToggle='ctrl-ctrl' repeat='on'/>
+    </input>
+{% endif %}
+{% if passthrough_mouse is defined and passthrough_mouse %}
+    <input type='evdev'>
+      <source dev='{{ passthrough_mouse }}'/>
+    </input>
+{% endif %}
+    <input type='mouse' bus='virtio'/>
+    <input type='keyboard' bus='virtio'/>
+    <input type='mouse' bus='ps2'/>
+    <input type='keyboard' bus='ps2'/>
+
+    <!-- TPM for Windows 11 -->
+    <tpm model='tpm-tis'>
+      <backend type='emulator' version='2.0'/>
+    </tpm>
+
+    <!-- SPICE Graphics -->
+    <graphics type='spice' autoport='yes'>
+      <listen type='address'/>
+      <image compression='off'/>
+    </graphics>
+
+    <!-- Audio -->
+    <sound model='ich9'>
+      <audio id='1'/>
+    </sound>
+    <audio id='1' type='spice'/>
+
+    <!-- Video - None (GPU passthrough only) -->
+    <video>
+      <model type='none'/>
+    </video>
+
+    <!-- GPU Passthrough -->
+    <hostdev mode='subsystem' type='pci' managed='yes'>
+      <source>
+        <address domain='{{ gpu_pci_video.split(":")[0] }}' bus='{{ gpu_pci_video.split(":")[1] }}' slot='{{ gpu_pci_video.split(":")[2].split(".")[0] }}' function='{{ gpu_pci_video.split(":")[2].split(".")[1] }}'/>
+      </source>
+      <rom bar='off'/>
+    </hostdev>
+    <hostdev mode='subsystem' type='pci' managed='yes'>
+      <source>
+        <address domain='{{ gpu_pci_audio.split(":")[0] }}' bus='{{ gpu_pci_audio.split(":")[1] }}' slot='{{ gpu_pci_audio.split(":")[2].split(".")[0] }}' function='{{ gpu_pci_audio.split(":")[2].split(".")[1] }}'/>
+      </source>
+      <rom bar='off'/>
+    </hostdev>
+
+{% for device in additional_pci_devices | default([]) %}
+    <!-- Additional PCI Device -->
+    <hostdev mode='subsystem' type='pci' managed='yes'>
+      <source>
+        <address domain='{{ device.split(":")[0] }}' bus='{{ device.split(":")[1] }}' slot='{{ device.split(":")[2].split(".")[0] }}' function='{{ device.split(":")[2].split(".")[1] }}'/>
+      </source>
+    </hostdev>
+{% endfor %}
+
+{% for usb in passthrough_usb_devices | default([]) %}
+    <!-- USB Device: {{ usb.description | default('') }} -->
+    <hostdev mode='subsystem' type='usb' managed='yes'>
+      <source>
+        <vendor id='{{ usb.vendor }}'/>
+        <product id='{{ usb.product }}'/>
+      </source>
+    </hostdev>
+{% endfor %}
+
+    <!-- SPICE USB Redirection -->
+    <redirdev bus='usb' type='spicevmc'/>
+
+    <!-- Watchdog -->
+    <watchdog model='itco' action='reset'/>
+
+    <!-- Disable Memory Ballooning -->
+    <memballoon model='none'/>
+
+    <!-- Looking Glass Shared Memory -->
+{% if not (use_kvmfr_module | default(false)) %}
+    <shmem name='looking-glass'>
+      <model type='ivshmem-plain'/>
+      <size unit='M'>{{ looking_glass_size_mb | default(256) }}</size>
+    </shmem>
+{% endif %}
+  </devices>
+
+{% if use_kvmfr_module | default(false) %}
+  <!-- Looking Glass KVMFR Device -->
+  <qemu:commandline>
+    <qemu:arg value='-device'/>
+    <qemu:arg value='{"driver":"ivshmem-plain","id":"shmem0","memdev":"looking-glass"}'/>
+    <qemu:arg value='-object'/>
+    <qemu:arg value='{"qom-type":"memory-backend-file","id":"looking-glass","mem-path":"/dev/kvmfr0","size":{{ (looking_glass_size_mb | int * 1024 * 1024) }},"share":true}'/>
+  </qemu:commandline>
+{% endif %}
+</domain>

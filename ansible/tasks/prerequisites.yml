@@ -1,0 +1,149 @@
+---
+# Prerequisites - Check and install required packages
+
+- name: Check if required packages are installed
+  shell: |
+    for pkg in qemu-kvm libvirt-daemon-system libvirt-clients virt-manager ovmf; do
+      if ! dpkg -l | grep -q "^ii  $pkg"; then
+        echo "missing"
+        exit 0
+      fi
+    done
+    echo "installed"
+  register: packages_check
+  changed_when: false
+  failed_when: false
+  become: false
+
+- name: Install QEMU/KVM and virtualization packages
+  package:
+    name:
+      - qemu-kvm
+      - libvirt-daemon-system
+      - libvirt-clients
+      - virtinst
+      - virt-manager
+      - ovmf
+      - bridge-utils
+      - dnsmasq
+      - dmidecode
+      - pciutils
+      - wget
+      - curl
+    state: present
+  register: package_install
+  failed_when: false
+  become: true
+  when: "'missing' in packages_check.stdout"
+
+- name: Install packages (alternative names for Fedora/RHEL)
+  package:
+    name:
+      - qemu-kvm
+      - libvirt
+      - virt-install
+      - virt-manager
+      - edk2-ovmf
+      - bridge-utils
+      - dnsmasq
+      - dmidecode
+      - pciutils
+      - wget
+      - curl
+    state: present
+  become: true
+  when: package_install is failed and "'missing' in packages_check.stdout"
+
+- name: Display package status
+  debug:
+    msg: "✓ All required packages already installed"
+  when: "'installed' in packages_check.stdout"
+
+- name: Check if IOMMU groups exist (reliable non-root check)
+  stat:
+    path: /sys/kernel/iommu_groups
+  register: iommu_groups_dir
+  become: false
+
+- name: Count IOMMU groups
+  shell: "ls -1 /sys/kernel/iommu_groups/ 2>/dev/null | wc -l"
+  register: iommu_group_count
+  changed_when: false
+  failed_when: false
+  become: false
+
+- name: Check kernel command line for IOMMU parameters
+  shell: "cat /proc/cmdline"
+  register: kernel_cmdline
+  changed_when: false
+  become: false
+
+- name: Determine IOMMU status
+  set_fact:
+    iommu_enabled: "{{ iommu_groups_dir.stat.exists and (iommu_group_count.stdout | int > 0) }}"
+    iommu_in_cmdline: "{{ 'intel_iommu=on' in kernel_cmdline.stdout or 'amd_iommu=on' in kernel_cmdline.stdout }}"
+
+- name: Display IOMMU status
+  debug:
+    msg:
+      - "IOMMU Groups: {{ iommu_group_count.stdout | default('0') }} found"
+      - "IOMMU Status: {{ 'ENABLED ✓' if iommu_enabled else 'NOT DETECTED ✗' }}"
+      - "Kernel cmdline: {{ 'IOMMU parameters present ✓' if iommu_in_cmdline else 'No IOMMU parameters found' }}"
+
+- name: Warn if IOMMU not detected
+  pause:
+    prompt: |
+      WARNING: IOMMU does not appear to be enabled!
+
+      IOMMU groups found: {{ iommu_group_count.stdout | default('0') }}
+      Kernel parameters: {{ 'Found' if iommu_in_cmdline else 'Missing' }}
+
+      To enable IOMMU:
+      1. Edit /etc/default/grub
+      2. Add to GRUB_CMDLINE_LINUX_DEFAULT:
+         - For Intel: intel_iommu=on iommu=pt
+         - For AMD: amd_iommu=on iommu=pt
+      3. Run: sudo update-grub (or grub2-mkconfig -o /boot/grub2/grub.cfg)
+      4. Reboot
+
+      Press Ctrl+C to abort, or Enter to continue anyway...
+  when: not iommu_enabled
+
+- name: Check if libvirtd is running
+  shell: systemctl is-active libvirtd
+  register: libvirtd_status
+  failed_when: false
+  changed_when: false
+  become: false
+
+- name: Ensure libvirtd is running
+  systemd:
+    name: libvirtd
+    state: started
+    enabled: true
+  become: true
+  when: libvirtd_status.rc != 0
+
+- name: Display libvirtd status
+  debug:
+    msg: "✓ libvirtd already running"
+  when: libvirtd_status.rc == 0
+
+- name: Check current user's group membership
+  shell: groups "{{ ansible_env.USER | default(ansible_user_id) }}"
+  register: user_groups
+  changed_when: false
+  become: false
+
+- name: Add current user to libvirt groups
+  user:
+    name: "{{ ansible_env.USER | default(ansible_user_id) }}"
+    groups: libvirt,kvm
+    append: true
+  become: true
+  when: "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
+
+- name: Display group membership status
+  debug:
+    msg: "✓ User '{{ ansible_env.USER }}' already in libvirt and kvm groups"
+  when: "'libvirt' in user_groups.stdout and 'kvm' in user_groups.stdout"

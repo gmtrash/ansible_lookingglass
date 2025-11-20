@@ -1,0 +1,27 @@
+---
+# Start VM - Launch VM and virt-manager
+
+- name: Start the VM
+  shell: virsh start {{ vm_name }}
+  register: vm_start
+  failed_when: false
+  changed_when: vm_start.rc == 0
+
+- name: Check VM state
+  shell: virsh list | grep {{ vm_name }}
+  register: vm_state
+  changed_when: false
+  failed_when: false
+
+- name: Display VM start status
+  debug:
+    msg: "{{ '✓ VM started successfully' if vm_start.rc == 0 else '⚠ VM already running or failed to start' }}"
+
+- name: Launch virt-manager
+  shell: |
+    sudo -u {{ lookup('env', 'SUDO_USER') | default(ansible_user_id) }} \
+    DISPLAY={{ lookup('env', 'DISPLAY') | default(':0') }} \
+    virt-manager &
+  async: 10
+  poll: 0
+  when: vm_start.rc == 0 and lookup('env', 'DISPLAY') != ''

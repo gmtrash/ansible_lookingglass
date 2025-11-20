@@ -1,0 +1,115 @@
+---
+# Hardware Detection - Auto-detect GPU, CPU, and SMBIOS
+
+- name: Detect GPU information
+  shell: lspci -nn | grep -iE "vga|3d controller" | head -1
+  register: gpu_detect
+  changed_when: false
+  failed_when: gpu_detect.stdout == ""
+
+- name: Parse GPU PCI address
+  set_fact:
+    detected_gpu_pci: "{{ gpu_detect.stdout.split()[0] }}"
+    detected_gpu_vendor: "{{ 'NVIDIA' if 'nvidia' in gpu_detect.stdout.lower() else 'AMD' }}"
+
+- name: Check for GPU audio device
+  shell: lspci -s {{ detected_gpu_pci[:-1] }}1
+  register: gpu_audio_check
+  changed_when: false
+  failed_when: false
+
+- name: Set GPU audio PCI if exists
+  set_fact:
+    detected_gpu_audio_pci: "{{ detected_gpu_pci[:-1] }}1"
+  when: gpu_audio_check.rc == 0
+
+- name: Display detected GPU
+  debug:
+    msg:
+      - "GPU Detected: {{ detected_gpu_vendor }}"
+      - "Video PCI: {{ detected_gpu_pci }}"
+      - "Audio PCI: {{ detected_gpu_audio_pci | default('Not found') }}"
+
+- name: Detect CPU vendor
+  set_fact:
+    detected_cpu_vendor: "{{ 'AMD' if 'AuthenticAMD' in ansible_processor[0] else 'Intel' }}"
+    detected_cpu_cores: "{{ ansible_processor_vcpus }}"
+
+- name: Display detected CPU
+  debug:
+    msg:
+      - "CPU: {{ ansible_processor[0] }}"
+      - "Vendor: {{ detected_cpu_vendor }}"
+      - "Cores: {{ detected_cpu_cores }}"
+
+- name: Detect BIOS information
+  shell: |
+    echo "vendor=$(dmidecode -s bios-vendor 2>/dev/null || echo 'Unknown')"
+    echo "version=$(dmidecode -s bios-version 2>/dev/null || echo 'Unknown')"
+    echo "date=$(dmidecode -s bios-release-date 2>/dev/null || echo 'Unknown')"
+  register: bios_detect
+  changed_when: false
+
+- name: Detect System information
+  shell: |
+    echo "manufacturer=$(dmidecode -s system-manufacturer 2>/dev/null || echo 'Unknown')"
+    echo "product=$(dmidecode -s system-product-name 2>/dev/null || echo 'Unknown')"
+    echo "version=$(dmidecode -s system-version 2>/dev/null || echo '1.0')"
+    echo "serial=$(dmidecode -s system-serial-number 2>/dev/null || echo 'Default string')"
+    echo "uuid=$(dmidecode -s system-uuid 2>/dev/null || uuidgen)"
+    echo "family=$(dmidecode -s system-family 2>/dev/null || echo 'Desktop')"
+  register: system_detect
+  changed_when: false
+
+- name: Detect Baseboard information
+  shell: |
+    echo "manufacturer=$(dmidecode -s baseboard-manufacturer 2>/dev/null || echo 'Unknown')"
+    echo "product=$(dmidecode -s baseboard-product-name 2>/dev/null || echo 'Unknown')"
+    echo "version=$(dmidecode -s baseboard-version 2>/dev/null || echo 'Rev X.0x')"
+    echo "serial=$(dmidecode -s baseboard-serial-number 2>/dev/null || echo 'Default string')"
+    echo "asset=$(dmidecode -s baseboard-asset-tag 2>/dev/null || echo 'Default string')"
+  register: baseboard_detect
+  changed_when: false
+
+- name: Parse BIOS information
+  set_fact:
+    bios_info: "{{ dict(bios_detect.stdout_lines | map('split', '=') | list) }}"
+
+- name: Parse System information
+  set_fact:
+    system_info: "{{ dict(system_detect.stdout_lines | map('split', '=') | list) }}"
+
+- name: Parse Baseboard information
+  set_fact:
+    baseboard_info: "{{ dict(baseboard_detect.stdout_lines | map('split', '=') | list) }}"
+
+- name: Save hardware detection results
+  copy:
+    dest: "/tmp/vfio_detected_hardware.yml"
+    content: |
+      # Auto-detected hardware configuration
+      # Generated: {{ ansible_date_time.iso8601 }}
+
+      gpu_pci_video: "0000:{{ detected_gpu_pci }}"
+      gpu_pci_audio: "0000:{{ detected_gpu_audio_pci | default('none') }}"
+      cpu_vendor: "{{ detected_cpu_vendor }}"
+      cpu_cores: {{ detected_cpu_cores }}
+
+      # SMBIOS Information
+      smbios_bios_vendor: "{{ bios_info.vendor }}"
+      smbios_bios_version: "{{ bios_info.version }}"
+      smbios_bios_date: "{{ bios_info.date }}"
+
+      smbios_system_manufacturer: "{{ system_info.manufacturer }}"
+      smbios_system_product: "{{ system_info.product }}"
+      smbios_system_version: "{{ system_info.version }}"
+      smbios_system_serial: "{{ system_info.serial }}"
+      smbios_system_uuid: "{{ system_info.uuid }}"
+      smbios_system_family: "{{ system_info.family }}"
+
+      smbios_baseboard_manufacturer: "{{ baseboard_info.manufacturer }}"
+      smbios_baseboard_product: "{{ baseboard_info.product }}"
+      smbios_baseboard_version: "{{ baseboard_info.version }}"
+      smbios_baseboard_serial: "{{ baseboard_info.serial }}"
+      smbios_baseboard_asset: "{{ baseboard_info.asset }}"
+    mode: '0644'

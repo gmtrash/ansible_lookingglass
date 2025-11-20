@@ -1,0 +1,98 @@
+#!/bin/bash
+#############################################################################
+##                    VFIO Configuration File                             ##
+#############################################################################
+## Copy this file to vfio.conf and customize for your system
+## cp config/vfio.conf.example config/vfio.conf
+
+#############################################################################
+## VM Configuration
+#############################################################################
+
+# Name of the VM as defined in libvirt
+VM_NAME="win11"
+
+# XML configuration file to use
+VM_XML_FILE="win11-working-lookingglass-12700kf.xml"
+
+#############################################################################
+## CPU Configuration
+#############################################################################
+
+# CPUs to pin host processes to when VM is running
+# These should be cores NOT used by the VM
+HOST_PINNED_CPUS="12-19"
+
+# All available CPUs when VM is not running
+ALL_CPUS="0-19"
+
+#############################################################################
+## Memory Configuration
+#############################################################################
+
+# Enable hugepages (true/false)
+ENABLE_HUGEPAGES=true
+
+# Number of 2MB hugepages to allocate
+# Calculate: (VM_RAM_GB * 1024) / 2
+# For 16GB VM: (16 * 1024) / 2 = 8192
+HUGEPAGES_COUNT=8192
+
+#############################################################################
+## Performance Optimizations
+#############################################################################
+
+# Enable performance tweaks (true/false)
+ENABLE_PERFORMANCE_TWEAKS=true
+
+# Enable CPU governor management (requires pstate-frequency)
+ENABLE_CPU_GOVERNOR=false
+
+# CPU governor mode when VM is running (max/performance)
+VM_CPU_GOVERNOR="max"
+
+#############################################################################
+## Looking Glass Configuration
+#############################################################################
+
+# Looking Glass shared memory device
+# Default: /dev/kvmfr0 (if using kvmfr kernel module)
+# Default: /dev/shm/looking-glass (if using libvirt shmem)
+LOOKING_GLASS_DEVICE="/dev/shm/looking-glass"
+
+# Looking Glass shared memory size in MB
+# 1080p: 32MB, 1440p: 64MB, 4K: 128MB, 4K HDR: 256MB
+LOOKING_GLASS_SIZE=256
+
+#############################################################################
+## Network Configuration
+#############################################################################
+
+# Bridge interface name
+BRIDGE_INTERFACE="br0"
+
+# Physical interface to bridge (optional, for setup)
+PHYSICAL_INTERFACE="enp6s0"
+
+#############################################################################
+## GPU Passthrough Configuration
+#############################################################################
+
+# GPU PCI addresses (find with: lspci -nn | grep VGA)
+# Example: 0000:01:00.0
+GPU_VIDEO_ADDRESS=""
+GPU_AUDIO_ADDRESS=""
+
+# Additional PCI devices to pass through (space-separated)
+# Example: "0000:04:00.0 0000:14:00.0"
+ADDITIONAL_PCI_DEVICES=""
+
+#############################################################################
+## Logging
+#############################################################################
+
+# Log file location
+VFIO_LOGFILE="/var/log/libvirt/vfio.log"
+
+# Enable debug logging (true/false)
+DEBUG_LOGGING=false

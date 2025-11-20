@@ -1,0 +1,109 @@
+---
+# Install VFIO - Setup libraries, scripts, and hooks
+
+- name: Create VFIO directories (user-owned)
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ install_dir }}"
+    - "{{ install_dir }}/lib"
+    - "{{ install_dir }}/scripts"
+    - "{{ install_dir }}/config"
+  become: false
+
+- name: Check if libvirt hooks directory exists
+  stat:
+    path: /etc/libvirt/hooks
+  register: hooks_dir
+  become: false
+
+- name: Create libvirt hooks directory
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /etc/libvirt/hooks
+    - /var/log/libvirt
+  become: true
+  when: not hooks_dir.stat.exists
+
+- name: Copy VFIO library
+  copy:
+    src: "{{ project_root }}/lib/vfio-common.sh"
+    dest: "{{ install_dir }}/lib/vfio-common.sh"
+    mode: '0755'
+  when: project_root + '/lib/vfio-common.sh' is file
+  become: false
+
+- name: Copy VFIO scripts
+  copy:
+    src: "{{ item }}"
+    dest: "{{ install_dir }}/scripts/{{ item | basename }}"
+    mode: '0755'
+  loop:
+    - "{{ project_root }}/scripts/vfio-start"
+    - "{{ project_root }}/scripts/vfio-stop"
+  when: item is file
+  become: false
+
+- name: Check if libvirt hook exists
+  stat:
+    path: /etc/libvirt/hooks/qemu
+  register: hook_exists
+  become: false
+
+- name: Install libvirt hook
+  copy:
+    src: "{{ project_root }}/hooks/qemu.new"
+    dest: /etc/libvirt/hooks/qemu
+    mode: '0755'
+  when: project_root + '/hooks/qemu.new' is file and not hook_exists.stat.exists
+  become: true
+
+- name: Configure hook to use install directory
+  lineinfile:
+    path: /etc/libvirt/hooks/qemu
+    regexp: '^PROJECT_ROOT='
+    line: 'PROJECT_ROOT="{{ install_dir }}"'
+    insertafter: '# Determine project root'
+  when: project_root + '/hooks/qemu.new' is file and not hook_exists.stat.exists
+  become: true
+
+- name: Display hook status
+  debug:
+    msg: "✓ Libvirt hook already installed"
+  when: hook_exists.stat.exists
+
+- name: Check if libvirt-nosleep service exists
+  stat:
+    path: /etc/systemd/system/libvirt-nosleep@.service
+  register: nosleep_exists
+  become: false
+
+- name: Create libvirt-nosleep service
+  copy:
+    dest: /etc/systemd/system/libvirt-nosleep@.service
+    content: |
+      [Unit]
+      Description=Preventing sleep while libvirt domain "%i" is running
+
+      [Service]
+      Type=simple
+      ExecStart=/usr/bin/systemd-inhibit --what=sleep --why="Libvirt domain %i is running" --who=%U --mode=block sleep infinity
+    mode: '0644'
+  become: true
+  when: not nosleep_exists.stat.exists
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: true
+  become: true
+  when: not nosleep_exists.stat.exists
+
+- name: Display nosleep service status
+  debug:
+    msg: "✓ libvirt-nosleep service already installed"
+  when: nosleep_exists.stat.exists

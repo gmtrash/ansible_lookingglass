@@ -1,0 +1,93 @@
+#!/bin/bash
+#############################################################################
+##                         VFIO VM Startup Script                         ##
+#############################################################################
+## Prepares the host for GPU passthrough and starts the VM
+
+set -euo pipefail
+
+# Get script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Source library functions
+source "$PROJECT_ROOT/lib/vfio-common.sh"
+
+# Load configuration
+CONFIG_FILE="$PROJECT_ROOT/config/vfio.conf"
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    log_error "Configuration file not found: $CONFIG_FILE"
+    log_info "Copy config/vfio.conf.example to config/vfio.conf and customize it"
+    exit 1
+fi
+
+source "$CONFIG_FILE"
+
+#############################################################################
+## Cleanup Handler
+#############################################################################
+
+cleanup_on_error() {
+    log_error "Startup failed, attempting cleanup"
+    "$PROJECT_ROOT/scripts/vfio-stop" --force || true
+    exit 1
+}
+
+trap cleanup_on_error ERR
+
+#############################################################################
+## Main Startup Sequence
+#############################################################################
+
+main() {
+    log_info "=========================================="
+    log_info "Starting VFIO setup for VM: $VM_NAME"
+    log_info "=========================================="
+
+    # Validation
+    log_info "Running pre-flight checks"
+    check_iommu_enabled || exit 1
+
+    # Pin host CPUs
+    if [[ -n "${HOST_PINNED_CPUS:-}" ]]; then
+        pin_host_cpus "$HOST_PINNED_CPUS"
+    fi
+
+    # Prevent sleep during VM operation
+    systemctl start "libvirt-nosleep@$VM_NAME" 2>/dev/null || true
+
+    # Stop display manager
+    log_info "Stopping display manager"
+    stop_display_manager
+
+    # Unbind VT consoles
+    unbind_vtconsoles
+
+    # Unload GPU drivers
+    unload_gpu_drivers
+
+    # Load VFIO drivers
+    load_vfio_drivers
+
+    # Allocate hugepages
+    if [[ "${ENABLE_HUGEPAGES:-false}" == "true" ]]; then
+        allocate_hugepages "${HUGEPAGES_COUNT:-8192}"
+    fi
+
+    # Apply performance tweaks
+    if [[ "${ENABLE_PERFORMANCE_TWEAKS:-false}" == "true" ]]; then
+        apply_performance_tweaks
+    fi
+
+    # Set CPU governor
+    if [[ "${ENABLE_CPU_GOVERNOR:-false}" == "true" ]] && command -v pstate-frequency &>/dev/null; then
+        log_info "Setting CPU governor to ${VM_CPU_GOVERNOR:-max}"
+        pstate-frequency --set -p "${VM_CPU_GOVERNOR:-max}" 2>/dev/null || log_warn "Failed to set CPU governor"
+    fi
+
+    log_info "=========================================="
+    log_info "VFIO setup complete"
+    log_info "=========================================="
+}
+
+main "$@"

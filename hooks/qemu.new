@@ -1,0 +1,81 @@
+#!/bin/bash
+#############################################################################
+##                         Libvirt QEMU Hook                              ##
+#############################################################################
+## This hook is called by libvirt when VM state changes
+## Install to: /etc/libvirt/hooks/qemu
+
+# Get script directory (where this hook is located)
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Determine project root
+if [[ "$HOOK_DIR" == "/etc/libvirt/hooks" ]]; then
+    # Hook is installed in system location
+    PROJECT_ROOT="/usr/local/share/vfio-setup"
+else
+    # Hook is in project directory
+    PROJECT_ROOT="$(dirname "$HOOK_DIR")"
+fi
+
+# Source library functions
+source "$PROJECT_ROOT/lib/vfio-common.sh"
+
+# Load configuration
+CONFIG_FILE="$PROJECT_ROOT/config/vfio.conf"
+if [[ -f "$CONFIG_FILE" ]]; then
+    source "$CONFIG_FILE"
+else
+    log_warn "Configuration file not found: $CONFIG_FILE"
+fi
+
+#############################################################################
+## Hook Parameters
+#############################################################################
+
+GUEST_NAME="$1"
+OPERATION="$2"
+SUB_OPERATION="${3:-}"
+EXTRA="${4:-}"
+
+# Log hook invocation
+log_info "Hook called: VM=$GUEST_NAME, Operation=$OPERATION, Sub=$SUB_OPERATION"
+
+#############################################################################
+## Hook Logic
+#############################################################################
+
+# Only process configured VM
+if [[ "$GUEST_NAME" != "${VM_NAME:-win11}" ]]; then
+    log_info "Ignoring VM $GUEST_NAME (configured for ${VM_NAME:-win11})"
+    exit 0
+fi
+
+case "$OPERATION" in
+    prepare)
+        case "$SUB_OPERATION" in
+            begin)
+                log_info "VM is starting - running vfio-start"
+                "$PROJECT_ROOT/scripts/vfio-start"
+                ;;
+        esac
+        ;;
+
+    release)
+        case "$SUB_OPERATION" in
+            end)
+                log_info "VM has stopped - running vfio-stop"
+                "$PROJECT_ROOT/scripts/vfio-stop"
+                ;;
+        esac
+        ;;
+
+    started)
+        log_info "VM has started successfully"
+        ;;
+
+    stopped)
+        log_info "VM has stopped"
+        ;;
+esac
+
+exit 0
