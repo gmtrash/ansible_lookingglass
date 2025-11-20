@@ -41,12 +41,12 @@ else
 fi
 
 echo -e "${CYAN}[INFO]${NC} Starting automated setup..."
-echo -e "${CYAN}[INFO]${NC} Sudo may be required for package installation and system config\n"
+echo -e "${CYAN}[INFO]${NC} You may be prompted for sudo password (only used when needed)\n"
 
 # Change to ansible directory
 cd "$(dirname "$0")/ansible"
 
 # Run the main playbook
-# Note: Individual tasks will prompt for sudo password only when needed
-# Use -K flag if you want to provide sudo password upfront
-ansible-playbook setup_complete.yml "$@"
+# -K asks for sudo password upfront (cached for tasks that need it)
+# Individual tasks only use sudo when actually needed (packages, hugepages, etc.)
+ansible-playbook setup_complete.yml -K "$@"
