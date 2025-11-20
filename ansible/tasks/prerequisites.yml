@@ -95,6 +95,7 @@
 
 - name: Add current user to libvirt groups
   user:
-    name: "{{ lookup('env', 'SUDO_USER') | default(ansible_user_id) }}"
+    name: "{{ ansible_env.USER | default(ansible_user_id) }}"
     groups: libvirt,kvm
     append: true
+  become: true

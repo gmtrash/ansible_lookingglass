@@ -1,9 +1,9 @@
 ---
 # User Preferences - Ask user for configuration choices
 
-- name: Get current user and home directory
+- name: Get current user
   set_fact:
-    actual_user: "{{ lookup('env', 'SUDO_USER') | default(ansible_user_id) }}"
+    actual_user: "{{ ansible_env.USER | default(ansible_user_id) | default(lookup('env', 'USER')) }}"
   become: false
 
 - name: Get actual user home directory
@@ -79,8 +79,6 @@
     path: "{{ iso_dir }}"
     state: directory
     mode: '0755'
-    owner: "{{ actual_user }}"
-    group: "{{ actual_user }}"
   become: false
   when: not storage_needs_sudo
 
