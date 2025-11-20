@@ -1,63 +1,9 @@
 ---
-# Prerequisites - Check and install required packages
-
-- name: Check if required packages are installed
-  shell: |
-    for pkg in qemu-kvm libvirt-daemon-system libvirt-clients virt-manager ovmf; do
-      if ! dpkg -l | grep -q "^ii  $pkg"; then
-        echo "missing"
-        exit 0
-      fi
-    done
-    echo "installed"
-  register: packages_check
-  changed_when: false
-  failed_when: false
-  become: false
-
-- name: Install QEMU/KVM and virtualization packages
-  package:
-    name:
-      - qemu-kvm
-      - libvirt-daemon-system
-      - libvirt-clients
-      - virtinst
-      - virt-manager
-      - ovmf
-      - bridge-utils
-      - dnsmasq
-      - dmidecode
-      - pciutils
-      - wget
-      - curl
-    state: present
-  register: package_install
-  failed_when: false
-  become: true
-  when: "'missing' in packages_check.stdout"
-
-- name: Install packages (alternative names for Fedora/RHEL)
-  package:
-    name:
-      - qemu-kvm
-      - libvirt
-      - virt-install
-      - virt-manager
-      - edk2-ovmf
-      - bridge-utils
-      - dnsmasq
-      - dmidecode
-      - pciutils
-      - wget
-      - curl
-    state: present
-  become: true
-  when: package_install is failed and "'missing' in packages_check.stdout"
+# Prerequisites - System checks (package installation handled by setup.sh)
 
 - name: Display package status
   debug:
-    msg: "✓ All required packages already installed"
-  when: "'installed' in packages_check.stdout"
+    msg: "✓ Package installation handled by setup.sh"
 
 - name: Check if IOMMU groups exist (reliable non-root check)
   stat:
@@ -109,41 +55,9 @@
       Press Ctrl+C to abort, or Enter to continue anyway...
   when: not iommu_enabled
 
-- name: Check if libvirtd is running
-  shell: systemctl is-active libvirtd
-  register: libvirtd_status
-  failed_when: false
-  changed_when: false
-  become: false
-
-- name: Ensure libvirtd is running
-  systemd:
-    name: libvirtd
-    state: started
-    enabled: true
-  become: true
-  when: libvirtd_status.rc != 0
-
-- name: Display libvirtd status
+- name: Display service status
   debug:
-    msg: "✓ libvirtd already running"
-  when: libvirtd_status.rc == 0
-
-- name: Check current user's group membership
-  shell: groups "{{ ansible_env.USER | default(ansible_user_id) }}"
-  register: user_groups
-  changed_when: false
-  become: false
-
-- name: Add current user to libvirt groups
-  user:
-    name: "{{ ansible_env.USER | default(ansible_user_id) }}"
-    groups: libvirt,kvm
-    append: true
-  become: true
-  when: "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
-
-- name: Display group membership status
-  debug:
-    msg: "✓ User '{{ ansible_env.USER }}' already in libvirt and kvm groups"
-  when: "'libvirt' in user_groups.stdout and 'kvm' in user_groups.stdout"
+    msg:
+      - "✓ Package installation handled by setup.sh"
+      - "✓ User group membership handled by setup.sh"
+      - "✓ Assuming libvirtd is running (systemctl status libvirtd to verify)"
