@@ -288,6 +288,22 @@
     </hostdev>
 {% endfor %}
 
+    <!-- Windows Installation ISO -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='{{ windows_iso_path }}'/>
+      <target dev='sdc' bus='sata'/>
+      <readonly/>
+    </disk>
+
+    <!-- VirtIO Drivers ISO -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='{{ virtio_iso_path }}'/>
+      <target dev='sdd' bus='sata'/>
+      <readonly/>
+    </disk>
+
     <!-- SPICE USB Redirection -->
     <redirdev bus='usb' type='spicevmc'/>
 

@@ -72,17 +72,13 @@
     bridge_name: virbr0
     custom_mac_address: "{{ vm_mac_address }}"
 
+    # ISO paths for installation
+    windows_iso_path: "{{ windows_iso }}"
+    virtio_iso_path: "{{ virtio_iso }}"
+
     # CPU pinning (simple: use first N cores for VM)
     vm_cpu_cores: "0-{{ vm_vcpus - 1 }}"
     host_cpu_cores: "{{ vm_vcpus }}-{{ hw.cpu_cores - 1 }}"
-
-- name: Add Windows ISO to VM XML
-  lineinfile:
-    path: "{{ install_dir }}/{{ vm_name }}.xml"
-    insertafter: "<disk type='file' device='cdrom'>"
-    line: "      <source file='{{ windows_iso }}'/>"
-    regexp: ".*Win11.*iso.*"
-  when: windows_stat.stat.exists
 
 - name: Check if VM already exists
   shell: virsh list --all --name | grep -q "^{{ vm_name }}$"
