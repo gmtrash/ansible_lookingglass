@@ -44,30 +44,30 @@
 
 - name: Detect BIOS information
   shell: |
-    echo "vendor=$(dmidecode -s bios-vendor 2>/dev/null || echo 'American Megatrends Inc.')"
-    echo "version=$(dmidecode -s bios-version 2>/dev/null || echo '1.0')"
-    echo "date=$(dmidecode -s bios-release-date 2>/dev/null || echo '01/01/2020')"
+    echo "vendor=$(sudo dmidecode -s bios-vendor 2>/dev/null || echo '{{ smbios_bios_vendor | default("American Megatrends International, LLC.") }}')"
+    echo "version=$(sudo dmidecode -s bios-version 2>/dev/null || echo '{{ smbios_bios_version | default("1.0") }}')"
+    echo "date=$(sudo dmidecode -s bios-release-date 2>/dev/null || echo '{{ smbios_bios_date | default("01/01/2020") }}')"
   register: bios_detect
   changed_when: false
 
 - name: Detect System information
   shell: |
-    echo "manufacturer=$(dmidecode -s system-manufacturer 2>/dev/null || echo 'System manufacturer')"
-    echo "product=$(dmidecode -s system-product-name 2>/dev/null || echo 'System Product Name')"
-    echo "version=$(dmidecode -s system-version 2>/dev/null || echo '1.0')"
-    echo "serial=$(dmidecode -s system-serial-number 2>/dev/null || echo 'System Serial Number')"
-    echo "uuid=$(dmidecode -s system-uuid 2>/dev/null || uuidgen)"
-    echo "family=$(dmidecode -s system-family 2>/dev/null || echo 'Desktop')"
+    echo "manufacturer=$(sudo dmidecode -s system-manufacturer 2>/dev/null || echo '{{ smbios_system_manufacturer | default("System manufacturer") }}')"
+    echo "product=$(sudo dmidecode -s system-product-name 2>/dev/null || echo '{{ smbios_system_product | default("System Product Name") }}')"
+    echo "version=$(sudo dmidecode -s system-version 2>/dev/null || echo '{{ smbios_system_version | default("1.0") }}')"
+    echo "serial=$(sudo dmidecode -s system-serial-number 2>/dev/null || echo '{{ smbios_system_serial | default("Default string") }}')"
+    echo "uuid=$(sudo dmidecode -s system-uuid 2>/dev/null || uuidgen)"
+    echo "family=$(sudo dmidecode -s system-family 2>/dev/null || echo '{{ smbios_system_family | default("Desktop") }}')"
   register: system_detect
   changed_when: false
 
 - name: Detect Baseboard information
   shell: |
-    echo "manufacturer=$(dmidecode -s baseboard-manufacturer 2>/dev/null || echo 'ASUSTeK COMPUTER INC.')"
-    echo "product=$(dmidecode -s baseboard-product-name 2>/dev/null || echo 'PRIME X570-P')"
-    echo "version=$(dmidecode -s baseboard-version 2>/dev/null || echo 'Rev X.0x')"
-    echo "serial=$(dmidecode -s baseboard-serial-number 2>/dev/null || echo 'Default string')"
-    echo "asset=$(dmidecode -s baseboard-asset-tag 2>/dev/null || echo 'Default string')"
+    echo "manufacturer=$(sudo dmidecode -s baseboard-manufacturer 2>/dev/null || echo '{{ smbios_baseboard_manufacturer | default("ASUSTeK COMPUTER INC.") }}')"
+    echo "product=$(sudo dmidecode -s baseboard-product-name 2>/dev/null || echo '{{ smbios_baseboard_product | default("PRIME X570-P") }}')"
+    echo "version=$(sudo dmidecode -s baseboard-version 2>/dev/null || echo '{{ smbios_baseboard_version | default("Default string") }}')"
+    echo "serial=$(sudo dmidecode -s baseboard-serial-number 2>/dev/null || echo '{{ smbios_baseboard_serial | default("Default string") }}')"
+    echo "asset=$(sudo dmidecode -s baseboard-asset-tag 2>/dev/null || echo '{{ smbios_baseboard_asset | default("Default string") }}')"
   register: baseboard_detect
   changed_when: false
 
