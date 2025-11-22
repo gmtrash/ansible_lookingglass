@@ -15,6 +15,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Parse arguments
+FORCE_NO_SUDO=false
+for arg in "$@"; do
+    if [[ "$arg" == "--no-sudo" ]]; then
+        FORCE_NO_SUDO=true
+    fi
+done
+
 # Show help if requested
 if [[ "${1:-}" == "--help" ]] || [[ "${1:-}" == "-h" ]]; then
     cat <<EOF
@@ -23,7 +31,11 @@ ${CYAN}║     Looking Glass VFIO Setup - Automated Installation     ║${NC}
 ${CYAN}╚════════════════════════════════════════════════════════════╝${NC}
 
 ${GREEN}Usage:${NC}
-  ./setup.sh [ANSIBLE_OPTIONS]
+  ./setup.sh [OPTIONS] [ANSIBLE_OPTIONS]
+
+${GREEN}Options:${NC}
+  --help, -h       Show this help message
+  --no-sudo        Skip sudo password prompt (packages must be installed)
 
 ${GREEN}Environment Variables:${NC}
   VM_NAME          VM name (default: win11)
@@ -43,6 +55,9 @@ ${GREEN}Examples:${NC}
 
   # Skip auto-start
   AUTO_START_VM=false ./setup.sh
+
+  # Skip sudo prompt (if packages already installed)
+  ./setup.sh --no-sudo
 
 ${GREEN}Troubleshooting Tools:${NC}
   ./fix_nvram.sh [VM_NAME]  - Fix NVRAM permission errors
@@ -84,13 +99,40 @@ else
     echo -e "${GREEN}[OK]${NC} Ansible found\n"
 fi
 
-echo -e "${CYAN}[INFO]${NC} Starting automated setup..."
-echo -e "${CYAN}[INFO]${NC} You may be prompted for sudo password (only used when needed)\n"
+echo -e "${CYAN}[INFO]${NC} Starting automated setup...\n"
+
+# Check if we need sudo access (packages not installed)
+NEED_SUDO=false
+if ! command -v virsh &>/dev/null || ! command -v qemu-system-x86_64 &>/dev/null; then
+    NEED_SUDO=true
+    echo -e "${YELLOW}[INFO]${NC} Required packages not found - will need sudo access for installation"
+fi
+
+# Override if user specified --no-sudo
+if [ "$FORCE_NO_SUDO" = true ]; then
+    NEED_SUDO=false
+    echo -e "${GREEN}[INFO]${NC} Running in --no-sudo mode"
+fi
 
 # Change to ansible directory
 cd "$(dirname "$0")/ansible"
 
+# Filter out --no-sudo from args to pass to ansible
+ANSIBLE_ARGS=()
+for arg in "$@"; do
+    if [[ "$arg" != "--no-sudo" ]]; then
+        ANSIBLE_ARGS+=("$arg")
+    fi
+done
+
 # Run the main playbook
-# -K asks for sudo password upfront (cached for tasks that need it)
-# Individual tasks only use sudo when actually needed (packages, hugepages, etc.)
-ansible-playbook setup_complete.yml -K "$@"
+if [ "$NEED_SUDO" = true ]; then
+    echo -e "${YELLOW}[INFO]${NC} You will be prompted for sudo password to install packages\n"
+    # -K asks for sudo password upfront (cached for tasks that need it)
+    ansible-playbook setup_complete.yml -K "${ANSIBLE_ARGS[@]}"
+else
+    echo -e "${GREEN}[INFO]${NC} Required packages detected - running setup without sudo prompt"
+    echo -e "${YELLOW}[INFO]${NC} (You may still be asked for password if system configuration is needed)\n"
+    # Try without -K first, let individual tasks request sudo if needed
+    ansible-playbook setup_complete.yml "${ANSIBLE_ARGS[@]}"
+fi

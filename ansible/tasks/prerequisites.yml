@@ -3,17 +3,23 @@
 
 - name: Check if required packages are installed
   shell: |
-    for pkg in qemu-kvm libvirt-daemon-system libvirt-clients virt-manager ovmf; do
-      if ! dpkg -l | grep -q "^ii  $pkg"; then
-        echo "missing"
-        exit 0
-      fi
-    done
-    echo "installed"
+    # Check for key packages - works across distros
+    if command -v qemu-system-x86_64 &>/dev/null && \
+       command -v virsh &>/dev/null && \
+       command -v virt-manager &>/dev/null && \
+       [ -f /usr/share/OVMF/OVMF_CODE.fd ] || [ -f /usr/share/edk2/ovmf/OVMF_CODE.fd ]; then
+      echo "installed"
+    else
+      echo "missing"
+    fi
   register: packages_check
   changed_when: false
   failed_when: false
   become: false
+
+- name: Display package check result
+  debug:
+    msg: "Package status: {{ packages_check.stdout }}"
 
 - name: Install QEMU/KVM and virtualization packages
   package:
@@ -34,6 +40,7 @@
   register: package_install
   failed_when: false
   become: true
+  timeout: 300
   when: "'missing' in packages_check.stdout"
 
 - name: Install packages (alternative names for Fedora/RHEL)
