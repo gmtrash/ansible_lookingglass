@@ -26,16 +26,9 @@
     vm_cpu_cores_per_die: "{{ (vm_vcpus | int / 2) | int }}"
     vm_cpu_threads: 2
 
-- name: Create VM disk image
-  shell: |
-    if [[ ! -f "{{ iso_dir }}/{{ vm_name }}.qcow2" ]]; then
-      qemu-img create -f qcow2 "{{ iso_dir }}/{{ vm_name }}.qcow2" 120G
-      echo "created"
-    else
-      echo "exists"
-    fi
-  register: disk_create
-  changed_when: "'created' in disk_create.stdout"
+- name: Display disk status
+  debug:
+    msg: "VM disk: {{ iso_dir }}/{{ vm_name }}.qcow2 (created by setup.sh)"
 
 - name: Generate VM XML from template
   template:

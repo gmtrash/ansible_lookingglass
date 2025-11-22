@@ -87,6 +87,30 @@ fi
 
 echo -e "${CYAN}[INFO]${NC} Starting automated setup...\n"
 
+# Determine storage directory and VM name
+VM_STORAGE_DIR=${VM_STORAGE_DIR:-"$HOME/libvirt/images"}
+VM_NAME=${VM_NAME:-"win11"}
+
+# Create storage directory if it doesn't exist
+if [ ! -d "$VM_STORAGE_DIR" ]; then
+    echo -e "${YELLOW}[INFO]${NC} Creating storage directory: $VM_STORAGE_DIR"
+    mkdir -p "$VM_STORAGE_DIR"
+    echo -e "${GREEN}[OK]${NC} Storage directory created\n"
+else
+    echo -e "${GREEN}[OK]${NC} Storage directory exists: $VM_STORAGE_DIR\n"
+fi
+
+# Create VM disk image if it doesn't exist
+VM_DISK="$VM_STORAGE_DIR/${VM_NAME}.qcow2"
+VM_DISK_SIZE=${VM_DISK_SIZE:-"120G"}
+if [ ! -f "$VM_DISK" ]; then
+    echo -e "${YELLOW}[INFO]${NC} Creating VM disk image ($VM_DISK_SIZE): $VM_DISK"
+    qemu-img create -f qcow2 "$VM_DISK" "$VM_DISK_SIZE"
+    echo -e "${GREEN}[OK]${NC} VM disk created\n"
+else
+    echo -e "${GREEN}[OK]${NC} VM disk already exists: $VM_DISK\n"
+fi
+
 # Configure hugepages if needed (for 16GB VM = 8192 hugepages)
 VM_MEMORY_GB=${VM_MEMORY_GB:-16}
 HUGEPAGES_NEEDED=$(( VM_MEMORY_GB * 1024 / 2 ))
