@@ -111,6 +111,19 @@ else
     echo -e "${GREEN}[OK]${NC} VM disk already exists: $VM_DISK\n"
 fi
 
+# Check for unattend.iso and copy to storage directory
+UNATTEND_SOURCE="$HOME/Downloads/unattend.iso"
+UNATTEND_DEST="$VM_STORAGE_DIR/unattend.iso"
+if [ -f "$UNATTEND_SOURCE" ] && [ ! -f "$UNATTEND_DEST" ]; then
+    echo -e "${YELLOW}[INFO]${NC} Copying unattend.iso for automated installation..."
+    cp "$UNATTEND_SOURCE" "$UNATTEND_DEST"
+    echo -e "${GREEN}[OK]${NC} Unattend ISO copied to: $UNATTEND_DEST\n"
+elif [ -f "$UNATTEND_DEST" ]; then
+    echo -e "${GREEN}[OK]${NC} Unattend ISO already exists: $UNATTEND_DEST\n"
+else
+    echo -e "${YELLOW}[INFO]${NC} No unattend.iso found in ~/Downloads (optional)\n"
+fi
+
 # Configure hugepages if needed (for 16GB VM = 8192 hugepages)
 VM_MEMORY_GB=${VM_MEMORY_GB:-16}
 HUGEPAGES_NEEDED=$(( VM_MEMORY_GB * 1024 / 2 ))

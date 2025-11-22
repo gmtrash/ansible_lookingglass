@@ -304,6 +304,14 @@
       <readonly/>
     </disk>
 
+    <!-- Unattend ISO for Automated Installation -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='{{ unattend_iso_path }}'/>
+      <target dev='sde' bus='sata'/>
+      <readonly/>
+    </disk>
+
     <!-- SPICE USB Redirection -->
     <redirdev bus='usb' type='spicevmc'/>
 

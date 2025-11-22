@@ -68,6 +68,7 @@
     # ISO paths for installation
     windows_iso_path: "{{ windows_iso }}"
     virtio_iso_path: "{{ virtio_iso }}"
+    unattend_iso_path: "{{ iso_dir }}/unattend.iso"
 
     # CPU pinning (simple: use first N cores for VM)
     vm_cpu_cores: "0-{{ vm_vcpus - 1 }}"
