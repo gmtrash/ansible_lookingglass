@@ -1,0 +1,117 @@
+Windows Registry Editor Version 5.00
+
+; VM Detection Evasion Registry Tweaks
+; Add to your custom Windows ISO for first-boot execution
+
+; ============================================================================
+; Disable Hyper-V Detection Features
+; ============================================================================
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\HvHost]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vmickvpexchange]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vmicguestinterface]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vmicshutdown]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vmicheartbeat]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vmicvss]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vmictimesync]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\vmicrdv]
+"Start"=dword:00000004
+
+; ============================================================================
+; Hide VM-related Device IDs
+; ============================================================================
+
+; Remove VMware Tools references
+[HKEY_LOCAL_MACHINE\SOFTWARE\VMware, Inc.]
+@=-
+
+; Remove VirtualBox references
+[HKEY_LOCAL_MACHINE\SOFTWARE\Oracle\VirtualBox Guest Additions]
+@=-
+
+; ============================================================================
+; Spoof System Information (use with caution)
+; ============================================================================
+
+; Note: These won't override SMBIOS from hypervisor, but some apps only check registry
+; Already handled by your VM XML SMBIOS settings, but included for completeness
+
+[HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\BIOS]
+"SystemManufacturer"="Gigabyte Technology Co., Ltd."
+"SystemProductName"="B550 AORUS ELITE V2"
+"BIOSVendor"="American Megatrends International, LLC."
+"BIOSVersion"="F20"
+"BIOSReleaseDate"="12/15/2023"
+
+[HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0]
+"ProcessorNameString"="AMD Ryzen 9 7950X 16-Core Processor"
+"VendorIdentifier"="AuthenticAMD"
+
+; ============================================================================
+; Disable Windows VM Detection Features
+; ============================================================================
+
+; Disable VM-specific optimizations that might leak detection
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion]
+"InstallationType"="Client"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Virtual Machine\Guest]
+@=-
+
+; ============================================================================
+; Performance Tweaks (reduces VM overhead detection)
+; ============================================================================
+
+; Disable unnecessary services
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\PcaSvc]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\DiagTrack]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\SysMain]
+"Start"=dword:00000004
+
+; Disable telemetry
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DataCollection]
+"AllowTelemetry"=dword:00000000
+
+; ============================================================================
+; GPU-specific (if you have GPU passthrough)
+; ============================================================================
+
+; Disable TDR (Timeout Detection and Recovery) - helps with GPU passthrough
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\GraphicsDrivers]
+"TdrLevel"=dword:00000000
+"TdrDelay"=dword:0000003c
+
+; ============================================================================
+; Network Adapter - Hide VirtIO
+; ============================================================================
+
+; These keys are device-specific, but the principle is:
+; HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e972-e325-11ce-bfc1-08002be10318}\0001
+; Change "DriverDesc" from "Red Hat VirtIO Ethernet Adapter" to something realistic
+
+; ============================================================================
+; IMPORTANT NOTES:
+; ============================================================================
+; 1. This file should be imported on first boot
+; 2. Some changes require reboot to take effect
+; 3. Your VM XML SMBIOS settings are MORE important than these registry tweaks
+; 4. Test with Pafish and Al-Khaser after applying
+; 5. Some anti-cheat may still detect VM through kernel-level checks
