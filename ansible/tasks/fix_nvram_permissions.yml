@@ -1,0 +1,108 @@
+---
+# Fix NVRAM Permissions - Resolve "Permission denied" errors for NVRAM files
+
+- name: Detect libvirt connection type
+  shell: |
+    if virsh uri 2>/dev/null | grep -q 'qemu:///session'; then
+      echo "session"
+    else
+      echo "system"
+    fi
+  register: libvirt_connection_type
+  changed_when: false
+  failed_when: false
+  become: false
+
+- name: Set NVRAM directory based on connection type
+  set_fact:
+    nvram_dir: "{{ lookup('env', 'HOME') }}/.local/share/libvirt/qemu/nvram"
+  when: libvirt_connection_type.stdout == "session"
+
+- name: Set NVRAM directory for system mode
+  set_fact:
+    nvram_dir: "/var/lib/libvirt/qemu/nvram"
+  when: libvirt_connection_type.stdout == "system"
+
+- name: Display detected libvirt mode
+  debug:
+    msg: "Detected libvirt mode: {{ libvirt_connection_type.stdout }}, NVRAM directory: {{ nvram_dir }}"
+
+- name: Create NVRAM directory if it doesn't exist
+  file:
+    path: "{{ nvram_dir }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user_id }}"
+  become: "{{ 'true' if libvirt_connection_type.stdout == 'system' else 'false' }}"
+  when: nvram_dir is defined
+
+- name: Check if NVRAM file exists
+  stat:
+    path: "{{ nvram_dir }}/{{ vm_name }}_VARS.fd"
+  register: nvram_file
+  when: nvram_dir is defined
+
+- name: Fix NVRAM file permissions (session mode)
+  file:
+    path: "{{ nvram_dir }}/{{ vm_name }}_VARS.fd"
+    mode: '0600'
+    owner: "{{ ansible_user_id }}"
+  become: false
+  when:
+    - nvram_dir is defined
+    - nvram_file.stat.exists
+    - libvirt_connection_type.stdout == "session"
+
+- name: Fix NVRAM file permissions (system mode)
+  file:
+    path: "{{ nvram_dir }}/{{ vm_name }}_VARS.fd"
+    mode: '0644'
+    owner: root
+    group: root
+  become: true
+  when:
+    - nvram_dir is defined
+    - nvram_file.stat.exists
+    - libvirt_connection_type.stdout == "system"
+
+- name: Fix parent directory ownership (session mode)
+  file:
+    path: "{{ nvram_dir }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ ansible_user_id }}"
+    recurse: false
+  become: false
+  when: libvirt_connection_type.stdout == "session"
+
+- name: Check if qemu user exists (for system mode ACL)
+  shell: id -u qemu || id -u libvirt-qemu
+  register: qemu_user_check
+  failed_when: false
+  changed_when: false
+  become: true
+  when: libvirt_connection_type.stdout == "system"
+
+- name: Set ACL for qemu user access (system mode)
+  shell: |
+    QEMU_USER=$(id -u qemu 2>/dev/null || id -u libvirt-qemu 2>/dev/null || echo "qemu")
+    if command -v setfacl &>/dev/null && [ -f "{{ nvram_dir }}/{{ vm_name }}_VARS.fd" ]; then
+      setfacl -m u:${QEMU_USER}:rw "{{ nvram_dir }}/{{ vm_name }}_VARS.fd"
+      echo "ACL set for user ${QEMU_USER}"
+    else
+      echo "setfacl not available or file doesn't exist"
+    fi
+  register: acl_result
+  changed_when: "'ACL set' in acl_result.stdout"
+  failed_when: false
+  become: true
+  when:
+    - libvirt_connection_type.stdout == "system"
+    - nvram_file.stat.exists
+
+- name: Display NVRAM permission fix status
+  debug:
+    msg:
+      - "✓ NVRAM directory: {{ nvram_dir }}"
+      - "✓ Connection mode: {{ libvirt_connection_type.stdout }}"
+      - "{{ '✓ NVRAM file permissions fixed' if nvram_file.stat.exists else '⚠ NVRAM file will be created on first VM start' }}"

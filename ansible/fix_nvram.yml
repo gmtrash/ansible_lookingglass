@@ -1,0 +1,48 @@
+---
+#############################################################################
+##              Fix NVRAM Permission Issues - Standalone Playbook          ##
+##        Run this if you get "Permission denied" errors for NVRAM files   ##
+#############################################################################
+
+- name: Fix QEMU NVRAM Permission Errors
+  hosts: localhost
+  gather_facts: true
+
+  vars:
+    vm_name: "{{ lookup('env', 'VM_NAME') | default('win11', true) }}"
+
+  tasks:
+    - name: Display purpose
+      debug:
+        msg:
+          - "╔════════════════════════════════════════════════════════════╗"
+          - "║         Fix QEMU NVRAM Permission Denied Errors            ║"
+          - "╚════════════════════════════════════════════════════════════╝"
+          - ""
+          - "This playbook fixes permission errors like:"
+          - "  'Could not open /path/to/nvram/{{ vm_name }}_VARS.fd: Permission denied'"
+          - ""
+          - "VM Name: {{ vm_name }}"
+          - ""
+
+    - name: Import NVRAM permission fix
+      import_tasks: tasks/fix_nvram_permissions.yml
+
+    - name: Display completion message
+      debug:
+        msg:
+          - ""
+          - "╔════════════════════════════════════════════════════════════╗"
+          - "║                   FIX COMPLETE                             ║"
+          - "╚════════════════════════════════════════════════════════════╝"
+          - ""
+          - "NVRAM permissions have been fixed."
+          - ""
+          - "You can now try starting your VM again:"
+          - "  virsh start {{ vm_name }}"
+          - ""
+          - "If you still encounter issues, try:"
+          - "  1. Check libvirt logs: journalctl -u libvirtd -f"
+          - "  2. Verify VM definition: virsh dumpxml {{ vm_name }}"
+          - "  3. Check SELinux/AppArmor if enabled"
+          - ""

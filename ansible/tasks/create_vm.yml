@@ -145,6 +145,9 @@
   changed_when: false
   failed_when: vm_name not in vm_list.stdout
 
+- name: Fix NVRAM permissions to prevent "Permission denied" errors
+  include_tasks: fix_nvram_permissions.yml
+
 - name: Display VM creation status (new VM)
   debug:
     msg:
