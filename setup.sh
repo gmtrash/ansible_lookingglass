@@ -127,13 +127,11 @@ for arg in "$@"; do
 done
 
 # Run the main playbook
+# Note: Not using -K flag to support sudo-rs (Rust sudo implementation)
+# Ansible will prompt interactively when sudo is needed, which works with both
+# standard sudo and sudo-rs
 if [ "$NEED_SUDO" = true ]; then
-    echo -e "${YELLOW}[INFO]${NC} You will be prompted for sudo password to install packages\n"
-    # -K asks for sudo password upfront (cached for tasks that need it)
-    ansible-playbook setup_complete.yml -K "${ANSIBLE_ARGS[@]}"
-else
-    echo -e "${GREEN}[INFO]${NC} Required packages detected - running setup without sudo prompt"
-    echo -e "${YELLOW}[INFO]${NC} (You may still be asked for password if system configuration is needed)\n"
-    # Try without -K first, let individual tasks request sudo if needed
-    ansible-playbook setup_complete.yml "${ANSIBLE_ARGS[@]}"
+    echo -e "${YELLOW}[INFO]${NC} Some tasks may prompt for sudo password interactively\n"
 fi
+
+ansible-playbook setup_complete.yml "${ANSIBLE_ARGS[@]}"
