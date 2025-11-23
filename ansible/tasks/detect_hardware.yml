@@ -42,49 +42,36 @@
       - "Vendor: {{ detected_cpu_vendor }}"
       - "Cores: {{ detected_cpu_cores }}"
 
-- name: Detect BIOS information
-  shell: |
-    echo "vendor=$(dmidecode -s bios-vendor 2>/dev/null || echo 'Unknown')"
-    echo "version=$(dmidecode -s bios-version 2>/dev/null || echo 'Unknown')"
-    echo "date=$(dmidecode -s bios-release-date 2>/dev/null || echo 'Unknown')"
-  register: bios_detect
-  changed_when: false
-  become: true
+- name: Load pre-scanned hardware information
+  include_vars:
+    file: /tmp/vfio_hardware_prescan.yml
+    name: prescan
 
-- name: Detect System information
-  shell: |
-    echo "manufacturer=$(dmidecode -s system-manufacturer 2>/dev/null || echo 'Unknown')"
-    echo "product=$(dmidecode -s system-product-name 2>/dev/null || echo 'Unknown')"
-    echo "version=$(dmidecode -s system-version 2>/dev/null || echo '1.0')"
-    echo "serial=$(dmidecode -s system-serial-number 2>/dev/null || echo 'Default string')"
-    echo "uuid=$(dmidecode -s system-uuid 2>/dev/null || uuidgen)"
-    echo "family=$(dmidecode -s system-family 2>/dev/null || echo 'Desktop')"
-  register: system_detect
-  changed_when: false
-  become: true
-
-- name: Detect Baseboard information
-  shell: |
-    echo "manufacturer=$(dmidecode -s baseboard-manufacturer 2>/dev/null || echo 'Unknown')"
-    echo "product=$(dmidecode -s baseboard-product-name 2>/dev/null || echo 'Unknown')"
-    echo "version=$(dmidecode -s baseboard-version 2>/dev/null || echo 'Rev X.0x')"
-    echo "serial=$(dmidecode -s baseboard-serial-number 2>/dev/null || echo 'Default string')"
-    echo "asset=$(dmidecode -s baseboard-asset-tag 2>/dev/null || echo 'Default string')"
-  register: baseboard_detect
-  changed_when: false
-  become: true
-
-- name: Parse BIOS information
+- name: Parse BIOS information from prescan
   set_fact:
-    bios_info: "{{ dict(bios_detect.stdout_lines | map('split', '=') | list) }}"
+    bios_info:
+      vendor: "{{ prescan.bios_vendor }}"
+      version: "{{ prescan.bios_version }}"
+      date: "{{ prescan.bios_date }}"
 
-- name: Parse System information
+- name: Parse System information from prescan
   set_fact:
-    system_info: "{{ dict(system_detect.stdout_lines | map('split', '=') | list) }}"
+    system_info:
+      manufacturer: "{{ prescan.system_manufacturer }}"
+      product: "{{ prescan.system_product }}"
+      version: "{{ prescan.system_version }}"
+      serial: "{{ prescan.system_serial }}"
+      uuid: "{{ prescan.system_uuid }}"
+      family: "{{ prescan.system_family }}"
 
-- name: Parse Baseboard information
+- name: Parse Baseboard information from prescan
   set_fact:
-    baseboard_info: "{{ dict(baseboard_detect.stdout_lines | map('split', '=') | list) }}"
+    baseboard_info:
+      manufacturer: "{{ prescan.baseboard_manufacturer }}"
+      product: "{{ prescan.baseboard_product }}"
+      version: "{{ prescan.baseboard_version }}"
+      serial: "{{ prescan.baseboard_serial }}"
+      asset: "{{ prescan.baseboard_asset }}"
 
 - name: Save hardware detection results
   copy:

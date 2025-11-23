@@ -102,6 +102,79 @@ fi
 
 echo -e "${CYAN}[INFO]${NC} Starting automated setup...\n"
 
+# Pre-gather hardware information with sudo (before Ansible)
+# This avoids sudo-rs compatibility issues with Ansible's become mechanism
+echo -e "${CYAN}[INFO]${NC} Gathering hardware information..."
+
+HARDWARE_FILE="/tmp/vfio_hardware_prescan.yml"
+cat > "$HARDWARE_FILE" <<EOF
+# Hardware information gathered by setup.sh
+# This file is read by Ansible to avoid sudo-rs issues with become: true
+
+EOF
+
+# Gather SMBIOS information (requires sudo for dmidecode)
+if command -v dmidecode &>/dev/null; then
+    echo -e "${YELLOW}[INFO]${NC} Reading system BIOS information (requires sudo)..."
+
+    BIOS_VENDOR=$(sudo dmidecode -s bios-vendor 2>/dev/null || echo "Unknown")
+    BIOS_VERSION=$(sudo dmidecode -s bios-version 2>/dev/null || echo "Unknown")
+    BIOS_DATE=$(sudo dmidecode -s bios-release-date 2>/dev/null || echo "Unknown")
+
+    SYS_MANUFACTURER=$(sudo dmidecode -s system-manufacturer 2>/dev/null || echo "Unknown")
+    SYS_PRODUCT=$(sudo dmidecode -s system-product-name 2>/dev/null || echo "Unknown")
+    SYS_VERSION=$(sudo dmidecode -s system-version 2>/dev/null || echo "Unknown")
+    SYS_SERIAL=$(sudo dmidecode -s system-serial-number 2>/dev/null || echo "Unknown")
+    SYS_UUID=$(sudo dmidecode -s system-uuid 2>/dev/null || uuidgen)
+    SYS_FAMILY=$(sudo dmidecode -s system-family 2>/dev/null || echo "Desktop")
+
+    BB_MANUFACTURER=$(sudo dmidecode -s baseboard-manufacturer 2>/dev/null || echo "Unknown")
+    BB_PRODUCT=$(sudo dmidecode -s baseboard-product-name 2>/dev/null || echo "Unknown")
+    BB_VERSION=$(sudo dmidecode -s baseboard-version 2>/dev/null || echo "Unknown")
+    BB_SERIAL=$(sudo dmidecode -s baseboard-serial-number 2>/dev/null || echo "Unknown")
+    BB_ASSET=$(sudo dmidecode -s baseboard-asset-tag 2>/dev/null || echo "Unknown")
+
+    # Append to hardware file
+    cat >> "$HARDWARE_FILE" <<EOF
+bios_vendor: "$BIOS_VENDOR"
+bios_version: "$BIOS_VERSION"
+bios_date: "$BIOS_DATE"
+
+system_manufacturer: "$SYS_MANUFACTURER"
+system_product: "$SYS_PRODUCT"
+system_version: "$SYS_VERSION"
+system_serial: "$SYS_SERIAL"
+system_uuid: "$SYS_UUID"
+system_family: "$SYS_FAMILY"
+
+baseboard_manufacturer: "$BB_MANUFACTURER"
+baseboard_product: "$BB_PRODUCT"
+baseboard_version: "$BB_VERSION"
+baseboard_serial: "$BB_SERIAL"
+baseboard_asset: "$BB_ASSET"
+EOF
+
+    echo -e "${GREEN}[OK]${NC} Hardware information gathered\n"
+else
+    echo -e "${YELLOW}[WARN]${NC} dmidecode not found, using default values\n"
+    cat >> "$HARDWARE_FILE" <<EOF
+bios_vendor: "Unknown"
+bios_version: "Unknown"
+bios_date: "Unknown"
+system_manufacturer: "Unknown"
+system_product: "Unknown"
+system_version: "Unknown"
+system_serial: "Unknown"
+system_uuid: "$(uuidgen)"
+system_family: "Desktop"
+baseboard_manufacturer: "Unknown"
+baseboard_product: "Unknown"
+baseboard_version: "Unknown"
+baseboard_serial: "Unknown"
+baseboard_asset: "Unknown"
+EOF
+fi
+
 # Check if we need sudo access (packages not installed)
 NEED_SUDO=false
 if ! command -v virsh &>/dev/null || ! command -v qemu-system-x86_64 &>/dev/null; then
