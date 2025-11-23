@@ -17,6 +17,7 @@
     auto_start_vm: "{{ lookup('env', 'AUTO_START_VM') | default('true', true) | bool }}"
     skip_package_install: "{{ lookup('env', 'SKIP_PACKAGE_INSTALL') | default('false', true) | bool }}"
     skip_sudo_tasks: "{{ lookup('env', 'SKIP_SUDO_TASKS') | default('false', true) | bool }}"
+    configure_hugepages: "{{ lookup('env', 'CONFIGURE_HUGEPAGES') | default('false', true) | bool }}"
 
     # Paths (iso_dir set by user_preferences.yml)
     project_root: "{{ playbook_dir | dirname }}"

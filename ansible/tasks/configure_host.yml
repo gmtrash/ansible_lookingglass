@@ -27,6 +27,7 @@
   become: true
   when:
     - hugepages_current.stdout | int < hugepages_needed | int
+    - configure_hugepages
     - not skip_sudo_tasks
 
 - name: Make hugepages persistent
@@ -38,6 +39,7 @@
   become: true
   when:
     - hugepages_current.stdout | int < hugepages_needed | int
+    - configure_hugepages
     - not skip_sudo_tasks
 
 - name: Verify hugepages allocation
@@ -58,6 +60,7 @@
   become: true
   when:
     - hugepages_mounted.rc != 0
+    - configure_hugepages
     - not skip_sudo_tasks
 
 - name: Mount hugepages
@@ -70,6 +73,7 @@
   become: true
   when:
     - hugepages_mounted.rc != 0
+    - configure_hugepages
     - not skip_sudo_tasks
 
 - name: Display hugepages mount status
