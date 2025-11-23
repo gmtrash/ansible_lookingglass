@@ -1,10 +1,10 @@
 ---
 - name: Setup Looking Glass VFIO VM on Linux Host
   hosts: vfio-host
-  become: true
+  become: false
   vars:
     project_root: "{{ playbook_dir | dirname }}"
-    install_dir: /usr/local/share/vfio-setup
+    install_dir: "{{ lookup('env', 'HOME') }}/.local/share/vfio-setup"
 
   tasks:
     - name: Install required packages
