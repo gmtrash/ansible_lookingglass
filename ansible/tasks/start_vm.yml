@@ -29,32 +29,30 @@
   changed_when: false
   failed_when: false
 
+- name: Determine if VM is running
+  set_fact:
+    vm_is_running: "{{ vm_state.rc == 0 and 'running' in vm_state.stdout }}"
+
 - name: Display VM start status (success)
   debug:
     msg:
       - "✓ VM started successfully"
       - "✓ Connect with: virt-manager"
       - "✓ Or use: virsh console {{ vm_name }}"
-  when: vm_start.rc == 0 or (vm_start_retry is defined and vm_start_retry.rc == 0)
-
-- name: Display VM start status (NVRAM error - fixed)
-  debug:
-    msg:
-      - "✓ VM started successfully (after fixing NVRAM permissions)"
-  when: vm_start.rc != 0 and nvram_permission_error | default(false) and vm_start_retry.rc == 0
+  when: vm_is_running
 
 - name: Display VM start error with helpful message
   debug:
     msg:
       - "⚠ Failed to start VM"
-      - "Error: {{ vm_start.stderr | default('Unknown error') }}"
+      - "Error: {{ vm_start.stderr | default(vm_start.stdout) | default('Unknown error') }}"
       - ""
       - "Troubleshooting steps:"
       - "  1. Check libvirt logs: journalctl -u libvirtd -f"
       - "  2. Verify VM definition: virsh dumpxml {{ vm_name }}"
       - "  3. Check IOMMU groups: dmesg | grep -i iommu"
       - "  4. Ensure GPU is not in use: lsof /dev/nvidia* /dev/dri/*"
-  when: vm_start.rc != 0 and not (vm_start_retry is defined and vm_start_retry.rc == 0)
+  when: not vm_is_running
 
 - name: Launch virt-manager
   shell: |
@@ -63,4 +61,4 @@
     virt-manager &
   async: 10
   poll: 0
-  when: vm_start.rc == 0 and lookup('env', 'DISPLAY') != ''
+  when: vm_is_running and lookup('env', 'DISPLAY') != ''
