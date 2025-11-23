@@ -98,7 +98,7 @@
       # SMBIOS Information
       smbios_bios_vendor: "{{ bios_info.vendor }}"
       smbios_bios_version: "{{ bios_info.version }}"
-      smbios_bios_date: "{{ bios_info.date }}"
+      smbios_bios_date: "{{ bios_info.date | regex_replace('/(\\d{2})(\\d{2})$', '/\\2') }}"
 
       smbios_system_manufacturer: "{{ system_info.manufacturer }}"
       smbios_system_product: "{{ system_info.product }}"
