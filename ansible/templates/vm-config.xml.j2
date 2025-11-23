@@ -36,24 +36,24 @@
   <!-- SMBIOS Information - Use real host values to avoid VM detection -->
   <sysinfo type='smbios'>
     <bios>
-      <entry name='vendor'>{{ smbios_bios_vendor | default('American Megatrends International, LLC.') }}</entry>
-      <entry name='version'>{{ smbios_bios_version | default('F20') }}</entry>
-      <entry name='date'>{{ smbios_bios_date | default('12/15/23') }}</entry>
+      <entry name='vendor'>{{ smbios_bios_vendor if smbios_bios_vendor != 'Unknown' else 'American Megatrends International, LLC.' }}</entry>
+      <entry name='version'>{{ smbios_bios_version if smbios_bios_version != 'Unknown' else 'F20' }}</entry>
+      <entry name='date'>{{ smbios_bios_date if (smbios_bios_date is defined and smbios_bios_date != 'Unknown' and smbios_bios_date != '') else '12/15/23' }}</entry>
     </bios>
     <system>
-      <entry name='manufacturer'>{{ smbios_system_manufacturer | default('ASUS') }}</entry>
-      <entry name='product'>{{ smbios_system_product | default('System Product Name') }}</entry>
-      <entry name='version'>{{ smbios_system_version | default('1.0') }}</entry>
-      <entry name='serial'>{{ smbios_system_serial | default('System Serial Number') }}</entry>
-      <entry name='sku'>{{ smbios_system_sku | default('SKU') }}</entry>
-      <entry name='family'>{{ smbios_system_family | default('Desktop') }}</entry>
+      <entry name='manufacturer'>{{ smbios_system_manufacturer if smbios_system_manufacturer != 'Unknown' else 'ASUS' }}</entry>
+      <entry name='product'>{{ smbios_system_product if smbios_system_product != 'Unknown' else 'System Product Name' }}</entry>
+      <entry name='version'>{{ smbios_system_version if smbios_system_version != 'Unknown' else '1.0' }}</entry>
+      <entry name='serial'>{{ smbios_system_serial if smbios_system_serial != 'Unknown' else 'System Serial Number' }}</entry>
+      <entry name='sku'>{{ smbios_system_sku if smbios_system_sku != 'Unknown' else 'SKU' }}</entry>
+      <entry name='family'>{{ smbios_system_family if smbios_system_family != 'Unknown' else 'Desktop' }}</entry>
     </system>
     <baseboard>
-      <entry name='manufacturer'>{{ smbios_baseboard_manufacturer | default(smbios_system_manufacturer | default('ASUS')) }}</entry>
-      <entry name='product'>{{ smbios_baseboard_product | default(smbios_system_product | default('PRIME X570-PRO')) }}</entry>
-      <entry name='version'>{{ smbios_baseboard_version | default('Rev X.0x') }}</entry>
-      <entry name='serial'>{{ smbios_baseboard_serial | default('Default string') }}</entry>
-      <entry name='asset'>{{ smbios_baseboard_asset | default('Default string') }}</entry>
+      <entry name='manufacturer'>{{ smbios_baseboard_manufacturer if smbios_baseboard_manufacturer != 'Unknown' else 'ASUS' }}</entry>
+      <entry name='product'>{{ smbios_baseboard_product if smbios_baseboard_product != 'Unknown' else 'PRIME X570-PRO' }}</entry>
+      <entry name='version'>{{ smbios_baseboard_version if smbios_baseboard_version != 'Unknown' else 'Rev X.0x' }}</entry>
+      <entry name='serial'>{{ smbios_baseboard_serial if smbios_baseboard_serial != 'Unknown' else 'Default string' }}</entry>
+      <entry name='asset'>{{ smbios_baseboard_asset if smbios_baseboard_asset != 'Unknown' else 'Default string' }}</entry>
       <entry name='location'>{{ smbios_baseboard_location | default('Default string') }}</entry>
     </baseboard>
   </sysinfo>
