@@ -34,7 +34,9 @@
   register: package_install
   failed_when: false
   become: true
-  when: "'missing' in packages_check.stdout"
+  when:
+    - "'missing' in packages_check.stdout"
+    - lookup('env', 'SKIP_PACKAGE_INSTALL') != 'true'
 
 - name: Install packages (alternative names for Fedora/RHEL)
   package:
@@ -52,7 +54,10 @@
       - curl
     state: present
   become: true
-  when: package_install is failed and "'missing' in packages_check.stdout"
+  when:
+    - package_install is failed
+    - "'missing' in packages_check.stdout"
+    - lookup('env', 'SKIP_PACKAGE_INSTALL') != 'true'
 
 - name: Display package status
   debug:
