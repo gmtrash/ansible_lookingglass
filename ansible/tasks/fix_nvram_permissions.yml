@@ -27,14 +27,26 @@
   debug:
     msg: "Detected libvirt mode: {{ libvirt_connection_type.stdout }}, NVRAM directory: {{ nvram_dir }}"
 
-- name: Create NVRAM directory if it doesn't exist
+- name: Create NVRAM directory if it doesn't exist (session mode)
   file:
     path: "{{ nvram_dir }}"
     state: directory
     mode: '0755'
     owner: "{{ ansible_user_id }}"
-  become: "{{ 'true' if libvirt_connection_type.stdout == 'system' else 'false' }}"
-  when: nvram_dir is defined
+  become: false
+  when:
+    - nvram_dir is defined
+    - libvirt_connection_type.stdout == "session"
+
+- name: Recommend creating NVRAM directory (system mode)
+  debug:
+    msg:
+      - "System mode detected. NVRAM directory may need manual creation:"
+      - "  sudo mkdir -p {{ nvram_dir }}"
+      - "  sudo chown root:root {{ nvram_dir }}"
+  when:
+    - nvram_dir is defined
+    - libvirt_connection_type.stdout == "system"
 
 - name: Check if NVRAM file exists
   stat:
@@ -53,13 +65,12 @@
     - nvram_file.stat.exists
     - libvirt_connection_type.stdout == "session"
 
-- name: Fix NVRAM file permissions (system mode)
-  file:
-    path: "{{ nvram_dir }}/{{ vm_name }}_VARS.fd"
-    mode: '0644'
-    owner: root
-    group: root
-  become: true
+- name: Recommend fixing NVRAM file permissions (system mode)
+  debug:
+    msg:
+      - "System mode NVRAM file detected. You may need to fix permissions manually:"
+      - "  sudo chmod 644 {{ nvram_dir }}/{{ vm_name }}_VARS.fd"
+      - "  sudo chown root:root {{ nvram_dir }}/{{ vm_name }}_VARS.fd"
   when:
     - nvram_dir is defined
     - nvram_file.stat.exists
@@ -75,27 +86,14 @@
   become: false
   when: libvirt_connection_type.stdout == "session"
 
-- name: Check if qemu user exists (for system mode ACL)
-  shell: id -u qemu || id -u libvirt-qemu
-  register: qemu_user_check
-  failed_when: false
-  changed_when: false
-  become: true
-  when: libvirt_connection_type.stdout == "system"
-
-- name: Set ACL for qemu user access (system mode)
-  shell: |
-    QEMU_USER=$(id -u qemu 2>/dev/null || id -u libvirt-qemu 2>/dev/null || echo "qemu")
-    if command -v setfacl &>/dev/null && [ -f "{{ nvram_dir }}/{{ vm_name }}_VARS.fd" ]; then
-      setfacl -m u:${QEMU_USER}:rw "{{ nvram_dir }}/{{ vm_name }}_VARS.fd"
-      echo "ACL set for user ${QEMU_USER}"
-    else
-      echo "setfacl not available or file doesn't exist"
-    fi
-  register: acl_result
-  changed_when: "'ACL set' in acl_result.stdout"
-  failed_when: false
-  become: true
+- name: Recommend ACL setup (system mode)
+  debug:
+    msg:
+      - "For system mode, you may need to set ACLs for qemu user access:"
+      - "  QEMU_USER=$(id -u qemu 2>/dev/null || id -u libvirt-qemu 2>/dev/null)"
+      - "  sudo setfacl -m u:${QEMU_USER}:rw {{ nvram_dir }}/{{ vm_name }}_VARS.fd"
+      - ""
+      - "This is optional and usually not needed for session mode."
   when:
     - libvirt_connection_type.stdout == "system"
     - nvram_file.stat.exists
