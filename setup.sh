@@ -41,12 +41,16 @@ else
 fi
 
 echo -e "${CYAN}[INFO]${NC} Starting automated setup..."
-echo -e "${CYAN}[INFO]${NC} You may be prompted for sudo password (only used when needed)\n"
+echo -e "${CYAN}[INFO]${NC} Sudo will only be requested if system changes are needed\n"
 
 # Change to ansible directory
 cd "$(dirname "$0")/ansible"
 
 # Run the main playbook
-# -K asks for sudo password upfront (cached for tasks that need it)
-# Individual tasks only use sudo when actually needed (packages, hugepages, etc.)
-ansible-playbook setup_complete.yml -K "$@"
+# Note: No -K flag to support sudo-rs (Rust sudo implementation)
+# Tasks will prompt for sudo password ONLY when:
+#   - Packages need installation
+#   - System configuration needs changes
+#   - Hooks/services need setup
+# If your system is already configured, no sudo prompts will occur.
+ansible-playbook setup_complete.yml "$@"
