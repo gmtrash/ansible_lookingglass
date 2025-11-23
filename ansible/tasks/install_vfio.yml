@@ -35,7 +35,6 @@
     src: "{{ project_root }}/lib/vfio-common.sh"
     dest: "{{ install_dir }}/lib/vfio-common.sh"
     mode: '0755'
-  when: project_root + '/lib/vfio-common.sh' is file
   become: false
 
 - name: Copy VFIO scripts
@@ -46,7 +45,6 @@
   loop:
     - "{{ project_root }}/scripts/vfio-start"
     - "{{ project_root }}/scripts/vfio-stop"
-  when: item is file
   become: false
 
 - name: Check if libvirt hook exists
@@ -60,7 +58,7 @@
     src: "{{ project_root }}/hooks/qemu.new"
     dest: /etc/libvirt/hooks/qemu
     mode: '0755'
-  when: project_root + '/hooks/qemu.new' is file and not hook_exists.stat.exists
+  when: not hook_exists.stat.exists
   become: true
 
 - name: Configure hook to use install directory
@@ -69,7 +67,7 @@
     regexp: '^PROJECT_ROOT='
     line: 'PROJECT_ROOT="{{ install_dir }}"'
     insertafter: '# Determine project root'
-  when: project_root + '/hooks/qemu.new' is file and not hook_exists.stat.exists
+  when: not hook_exists.stat.exists
   become: true
 
 - name: Display hook status
