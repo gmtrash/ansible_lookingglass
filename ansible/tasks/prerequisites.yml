@@ -44,7 +44,7 @@
 
 - name: Check if package installation should be skipped
   set_fact:
-    skip_package_install: "{{ lookup('env', 'SKIP_PACKAGE_INSTALL') | default('false', true) | bool }}"
+    skip_package_install: "{{ skip_package_install | default(lookup('env', 'SKIP_PACKAGE_INSTALL') | default('false', true) | bool) }}"
 
 - name: Display package installation skip message
   debug:
@@ -77,6 +77,7 @@
   when:
     - "'missing' in packages_check.stdout"
     - not skip_package_install
+    - not skip_sudo_tasks
 
 - name: Install packages (alternative names for Fedora/RHEL)
   package:
@@ -94,7 +95,9 @@
       - curl
     state: present
   become: true
-  when: package_install is failed and "'missing' in packages_check.stdout"
+  when:
+    - package_install is failed and "'missing' in packages_check.stdout"
+    - not skip_sudo_tasks
 
 - name: Display package status
   debug:
@@ -164,7 +167,9 @@
     state: started
     enabled: true
   become: true
-  when: libvirtd_status.rc != 0
+  when:
+    - libvirtd_status.rc != 0
+    - not skip_sudo_tasks
 
 - name: Display libvirtd status
   debug:
@@ -183,7 +188,9 @@
     groups: libvirt,kvm
     append: true
   become: true
-  when: "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
+  when:
+    - "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
+    - not skip_sudo_tasks
 
 - name: Display group membership status
   debug:

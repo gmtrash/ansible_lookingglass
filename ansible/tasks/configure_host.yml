@@ -25,7 +25,9 @@
     state: present
     sysctl_set: true
   become: true
-  when: hugepages_current.stdout | int < hugepages_needed | int
+  when:
+    - hugepages_current.stdout | int < hugepages_needed | int
+    - not skip_sudo_tasks
 
 - name: Make hugepages persistent
   lineinfile:
@@ -34,7 +36,9 @@
     regexp: '^vm.nr_hugepages'
     create: true
   become: true
-  when: hugepages_current.stdout | int < hugepages_needed | int
+  when:
+    - hugepages_current.stdout | int < hugepages_needed | int
+    - not skip_sudo_tasks
 
 - name: Verify hugepages allocation
   shell: cat /proc/sys/vm/nr_hugepages
@@ -52,7 +56,9 @@
     state: directory
     mode: '0755'
   become: true
-  when: hugepages_mounted.rc != 0
+  when:
+    - hugepages_mounted.rc != 0
+    - not skip_sudo_tasks
 
 - name: Mount hugepages
   mount:
@@ -62,7 +68,9 @@
     opts: "mode=1770,gid={{ ansible_env.USER | default(ansible_user_id) }}"
     state: mounted
   become: true
-  when: hugepages_mounted.rc != 0
+  when:
+    - hugepages_mounted.rc != 0
+    - not skip_sudo_tasks
 
 - name: Display hugepages mount status
   debug:

@@ -28,7 +28,9 @@
     - /etc/libvirt/hooks
     - /var/log/libvirt
   become: true
-  when: not hooks_dir.stat.exists
+  when:
+    - not hooks_dir.stat.exists
+    - not skip_sudo_tasks
 
 - name: Copy VFIO library
   copy:
@@ -58,7 +60,9 @@
     src: "{{ project_root }}/hooks/qemu.new"
     dest: /etc/libvirt/hooks/qemu
     mode: '0755'
-  when: not hook_exists.stat.exists
+  when:
+    - not hook_exists.stat.exists
+    - not skip_sudo_tasks
   become: true
 
 - name: Configure hook to use install directory
@@ -67,7 +71,9 @@
     regexp: '^PROJECT_ROOT='
     line: 'PROJECT_ROOT="{{ install_dir }}"'
     insertafter: '# Determine project root'
-  when: not hook_exists.stat.exists
+  when:
+    - not hook_exists.stat.exists
+    - not skip_sudo_tasks
   become: true
 
 - name: Display hook status
@@ -93,13 +99,17 @@
       ExecStart=/usr/bin/systemd-inhibit --what=sleep --why="Libvirt domain %i is running" --who=%U --mode=block sleep infinity
     mode: '0644'
   become: true
-  when: not nosleep_exists.stat.exists
+  when:
+    - not nosleep_exists.stat.exists
+    - not skip_sudo_tasks
 
 - name: Reload systemd
   systemd:
     daemon_reload: true
   become: true
-  when: not nosleep_exists.stat.exists
+  when:
+    - not nosleep_exists.stat.exists
+    - not skip_sudo_tasks
 
 - name: Display nosleep service status
   debug:
