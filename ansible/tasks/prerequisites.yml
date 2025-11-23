@@ -1,6 +1,27 @@
 ---
 # Prerequisites - Check and install required packages
 
+- name: Check individual package components
+  shell: |
+    echo "qemu-system-x86_64: $(command -v qemu-system-x86_64 || echo 'NOT FOUND')"
+    echo "virsh: $(command -v virsh || echo 'NOT FOUND')"
+    echo "virt-manager: $(command -v virt-manager || echo 'NOT FOUND')"
+    if [ -f /usr/share/OVMF/OVMF_CODE.fd ]; then
+      echo "OVMF: /usr/share/OVMF/OVMF_CODE.fd"
+    elif [ -f /usr/share/edk2/ovmf/OVMF_CODE.fd ]; then
+      echo "OVMF: /usr/share/edk2/ovmf/OVMF_CODE.fd"
+    else
+      echo "OVMF: NOT FOUND"
+    fi
+  register: package_details
+  changed_when: false
+  failed_when: false
+  become: false
+
+- name: Display detailed package check
+  debug:
+    msg: "{{ package_details.stdout_lines }}"
+
 - name: Check if required packages are installed
   shell: |
     # Check for key packages - works across distros
@@ -20,33 +41,6 @@
 - name: Display package check result
   debug:
     msg: "Package status: {{ packages_check.stdout }}"
-
-- name: Check if we can use sudo (only if packages missing)
-  shell: sudo -n true 2>/dev/null
-  register: sudo_check
-  failed_when: false
-  changed_when: false
-  when: "'missing' in packages_check.stdout"
-
-- name: Fail if packages missing and no sudo access
-  fail:
-    msg: |
-      ERROR: Required packages are missing but sudo access is not available.
-
-      Missing packages: qemu-kvm, libvirt, virt-manager, ovmf
-
-      Please either:
-        1. Install packages manually:
-           sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients virt-manager ovmf
-
-        2. Run setup WITH sudo password prompt:
-           ./setup.sh   (without --no-sudo flag)
-
-        3. Configure passwordless sudo (not recommended):
-           Add to /etc/sudoers: {{ ansible_env.USER }} ALL=(ALL) NOPASSWD: ALL
-  when:
-    - "'missing' in packages_check.stdout"
-    - sudo_check is defined and sudo_check.rc != 0
 
 - name: Install QEMU/KVM and virtualization packages
   package:
