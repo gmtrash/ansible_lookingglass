@@ -11,72 +11,25 @@
   changed_when: false
   become: false
 
-- name: Check if hugepages mount exists
-  shell: mount | grep -q hugetlbfs
-  register: hugepages_mounted
-  changed_when: false
-  failed_when: false
-  become: false
-
-- name: Configure hugepages (runtime)
-  sysctl:
-    name: vm.nr_hugepages
-    value: "{{ hugepages_needed }}"
-    state: present
-    sysctl_set: true
-  become: true
-  when:
-    - hugepages_current.stdout | int < hugepages_needed | int
-    - configure_hugepages
-    - not skip_sudo_tasks
-
-- name: Make hugepages persistent
-  lineinfile:
-    path: /etc/sysctl.conf
-    line: "vm.nr_hugepages = {{ hugepages_needed }}"
-    regexp: '^vm.nr_hugepages'
-    create: true
-  become: true
-  when:
-    - hugepages_current.stdout | int < hugepages_needed | int
-    - configure_hugepages
-    - not skip_sudo_tasks
-
 - name: Verify hugepages allocation
   shell: cat /proc/sys/vm/nr_hugepages
   register: hugepages_actual
   changed_when: false
   become: false
 
-- name: Display hugepages status
+- name: Display hugepages status (sufficient)
   debug:
-    msg: "Hugepages: {{ hugepages_actual.stdout }} / {{ hugepages_needed }} ({{ '✓ OK' if hugepages_actual.stdout | int >= hugepages_needed | int else '⚠ Insufficient' }})"
+    msg: "✓ Hugepages: {{ hugepages_actual.stdout }} / {{ hugepages_needed }} configured"
+  when: hugepages_actual.stdout | int >= hugepages_needed | int
 
-- name: Create hugepages mount point
-  file:
-    path: /dev/hugepages
-    state: directory
-    mode: '0755'
-  become: true
-  when:
-    - hugepages_mounted.rc != 0
-    - configure_hugepages
-    - not skip_sudo_tasks
-
-- name: Mount hugepages
-  mount:
-    path: /dev/hugepages
-    src: hugetlbfs
-    fstype: hugetlbfs
-    opts: "mode=1770,gid={{ ansible_env.USER | default(ansible_user_id) }}"
-    state: mounted
-  become: true
-  when:
-    - hugepages_mounted.rc != 0
-    - configure_hugepages
-    - not skip_sudo_tasks
-
-- name: Display hugepages mount status
+- name: Display hugepages recommendation
   debug:
-    msg: "✓ Hugepages already mounted"
-  when: hugepages_mounted.rc == 0
+    msg:
+      - "ℹ Hugepages: {{ hugepages_actual.stdout }} / {{ hugepages_needed }} (insufficient but optional)"
+      - ""
+      - "For better performance, configure hugepages manually:"
+      - "  sudo sysctl -w vm.nr_hugepages={{ hugepages_needed }}"
+      - "  echo 'vm.nr_hugepages = {{ hugepages_needed }}' | sudo tee -a /etc/sysctl.conf"
+      - ""
+      - "Hugepages improve performance but VM will work fine without them."
+  when: hugepages_actual.stdout | int < hugepages_needed | int

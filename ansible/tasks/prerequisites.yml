@@ -38,71 +38,41 @@
   failed_when: false
   become: false
 
-- name: Display package check result
-  debug:
-    msg: "Package status: {{ packages_check.stdout }}"
-
-- name: Check if package installation should be skipped
-  set_fact:
-    skip_package_install: "{{ skip_package_install | default(lookup('env', 'SKIP_PACKAGE_INSTALL') | default('false', true) | bool) }}"
-
-- name: Display package installation skip message
+- name: Display package status (all installed)
   debug:
     msg:
-      - "⚠ SKIP_PACKAGE_INSTALL is set - skipping package installation"
-      - "⚠ If packages are missing, install them manually:"
-      - "  sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients virt-manager ovmf bridge-utils dnsmasq"
-  when: skip_package_install and 'missing' in packages_check.stdout
-
-- name: Install QEMU/KVM and virtualization packages
-  package:
-    name:
-      - qemu-kvm
-      - libvirt-daemon-system
-      - libvirt-clients
-      - virtinst
-      - virt-manager
-      - ovmf
-      - bridge-utils
-      - dnsmasq
-      - dmidecode
-      - pciutils
-      - wget
-      - curl
-    state: present
-  register: package_install
-  failed_when: false
-  become: true
-  timeout: 300
-  when:
-    - "'missing' in packages_check.stdout"
-    - not skip_package_install
-    - not skip_sudo_tasks
-
-- name: Install packages (alternative names for Fedora/RHEL)
-  package:
-    name:
-      - qemu-kvm
-      - libvirt
-      - virt-install
-      - virt-manager
-      - edk2-ovmf
-      - bridge-utils
-      - dnsmasq
-      - dmidecode
-      - pciutils
-      - wget
-      - curl
-    state: present
-  become: true
-  when:
-    - package_install is failed and "'missing' in packages_check.stdout"
-    - not skip_sudo_tasks
-
-- name: Display package status
-  debug:
-    msg: "✓ All required packages already installed"
+      - "✓ All required packages are installed"
   when: "'installed' in packages_check.stdout"
+
+- name: Warn if packages are missing
+  debug:
+    msg:
+      - "╔════════════════════════════════════════════════════════════╗"
+      - "║  PREREQUISITE WARNING: Missing Packages                   ║"
+      - "╚════════════════════════════════════════════════════════════╝"
+      - ""
+      - "Some required packages are not installed. Please install them:"
+      - ""
+      - "Ubuntu/Debian:"
+      - "  sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients \\"
+      - "    virt-manager ovmf bridge-utils dnsmasq dmidecode pciutils"
+      - ""
+      - "Fedora/RHEL:"
+      - "  sudo dnf install qemu-kvm libvirt virt-install virt-manager \\"
+      - "    edk2-ovmf bridge-utils dnsmasq dmidecode pciutils"
+      - ""
+      - "Arch:"
+      - "  sudo pacman -S qemu-base libvirt virt-manager edk2-ovmf \\"
+      - "    bridge-utils dnsmasq dmidecode pciutils"
+      - ""
+      - "After installing, re-run this script."
+      - ""
+  when: "'missing' in packages_check.stdout"
+
+- name: Fail if packages are missing
+  fail:
+    msg: "Please install required packages (see above) and re-run setup."
+  when: "'missing' in packages_check.stdout"
 
 - name: Check if IOMMU groups exist (reliable non-root check)
   stat:
@@ -161,20 +131,20 @@
   changed_when: false
   become: false
 
-- name: Ensure libvirtd is running
-  systemd:
-    name: libvirtd
-    state: started
-    enabled: true
-  become: true
-  when:
-    - libvirtd_status.rc != 0
-    - not skip_sudo_tasks
-
-- name: Display libvirtd status
+- name: Display libvirtd status (running)
   debug:
-    msg: "✓ libvirtd already running"
+    msg: "✓ libvirtd service is running"
   when: libvirtd_status.rc == 0
+
+- name: Warn if libvirtd not running
+  debug:
+    msg:
+      - "⚠ libvirtd service is not running"
+      - ""
+      - "Start and enable libvirtd:"
+      - "  sudo systemctl start libvirtd"
+      - "  sudo systemctl enable libvirtd"
+  when: libvirtd_status.rc != 0
 
 - name: Check current user's group membership
   shell: groups "{{ ansible_env.USER | default(ansible_user_id) }}"
@@ -182,17 +152,19 @@
   changed_when: false
   become: false
 
-- name: Add current user to libvirt groups
-  user:
-    name: "{{ ansible_env.USER | default(ansible_user_id) }}"
-    groups: libvirt,kvm
-    append: true
-  become: true
-  when:
-    - "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
-    - not skip_sudo_tasks
-
-- name: Display group membership status
+- name: Display group membership status (OK)
   debug:
-    msg: "✓ User '{{ ansible_env.USER }}' already in libvirt and kvm groups"
+    msg: "✓ User '{{ ansible_env.USER }}' is in libvirt and kvm groups"
   when: "'libvirt' in user_groups.stdout and 'kvm' in user_groups.stdout"
+
+- name: Recommend adding user to groups
+  debug:
+    msg:
+      - "⚠ User '{{ ansible_env.USER }}' is not in required groups"
+      - ""
+      - "Add yourself to libvirt and kvm groups:"
+      - "  sudo usermod -aG libvirt,kvm {{ ansible_env.USER }}"
+      - "  newgrp libvirt"
+      - ""
+      - "(You may need to log out and back in for group changes to take effect)"
+  when: "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
