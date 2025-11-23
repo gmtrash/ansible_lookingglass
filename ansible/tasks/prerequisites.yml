@@ -42,6 +42,18 @@
   debug:
     msg: "Package status: {{ packages_check.stdout }}"
 
+- name: Check if package installation should be skipped
+  set_fact:
+    skip_package_install: "{{ lookup('env', 'SKIP_PACKAGE_INSTALL') | default('false', true) | bool }}"
+
+- name: Display package installation skip message
+  debug:
+    msg:
+      - "⚠ SKIP_PACKAGE_INSTALL is set - skipping package installation"
+      - "⚠ If packages are missing, install them manually:"
+      - "  sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients virt-manager ovmf bridge-utils dnsmasq"
+  when: skip_package_install and 'missing' in packages_check.stdout
+
 - name: Install QEMU/KVM and virtualization packages
   package:
     name:
@@ -62,7 +74,9 @@
   failed_when: false
   become: true
   timeout: 300
-  when: "'missing' in packages_check.stdout"
+  when:
+    - "'missing' in packages_check.stdout"
+    - not skip_package_install
 
 - name: Install packages (alternative names for Fedora/RHEL)
   package:

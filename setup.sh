@@ -38,13 +38,14 @@ ${GREEN}Options:${NC}
   --no-sudo        Skip sudo password prompt (packages must be installed)
 
 ${GREEN}Environment Variables:${NC}
-  VM_NAME          VM name (default: win11)
-  VM_MEMORY_GB     RAM in GB (default: 16)
-  VM_VCPUS         CPU cores (default: 12)
-  AUTO_REPLACE_VM  Replace existing VM without prompting (default: false)
-  AUTO_START_VM    Start VM after creation (default: true)
-  SKIP_ISO_DOWNLOAD Skip Windows ISO check (default: false)
-  WINDOWS_ISO      Path to Windows 11 ISO
+  VM_NAME               VM name (default: win11)
+  VM_MEMORY_GB          RAM in GB (default: 16)
+  VM_VCPUS              CPU cores (default: 12)
+  AUTO_REPLACE_VM       Replace existing VM without prompting (default: false)
+  AUTO_START_VM         Start VM after creation (default: true)
+  SKIP_ISO_DOWNLOAD     Skip Windows ISO check (default: false)
+  SKIP_PACKAGE_INSTALL  Skip package installation (default: false)
+  WINDOWS_ISO           Path to Windows 11 ISO
 
 ${GREEN}Examples:${NC}
   # Standard installation
