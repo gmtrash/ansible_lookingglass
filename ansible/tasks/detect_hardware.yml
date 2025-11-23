@@ -49,6 +49,7 @@
     echo "date=$(dmidecode -s bios-release-date 2>/dev/null || echo 'Unknown')"
   register: bios_detect
   changed_when: false
+  become: true
 
 - name: Detect System information
   shell: |
@@ -60,6 +61,7 @@
     echo "family=$(dmidecode -s system-family 2>/dev/null || echo 'Desktop')"
   register: system_detect
   changed_when: false
+  become: true
 
 - name: Detect Baseboard information
   shell: |
@@ -70,6 +72,7 @@
     echo "asset=$(dmidecode -s baseboard-asset-tag 2>/dev/null || echo 'Default string')"
   register: baseboard_detect
   changed_when: false
+  become: true
 
 - name: Parse BIOS information
   set_fact:
