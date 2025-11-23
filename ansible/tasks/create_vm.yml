@@ -72,6 +72,10 @@
     bridge_name: virbr0
     custom_mac_address: "{{ vm_mac_address }}"
 
+    # OVMF firmware paths
+    ovmf_code: "{{ hw.ovmf_code_path }}"
+    ovmf_vars_template: "{{ hw.ovmf_vars_path }}"
+
     # CPU pinning (simple: use first N cores for VM)
     vm_cpu_cores: "0-{{ vm_vcpus - 1 }}"
     host_cpu_cores: "{{ vm_vcpus }}-{{ hw.cpu_cores - 1 }}"
