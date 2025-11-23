@@ -82,10 +82,23 @@
   become: false
   when: not storage_needs_sudo
 
-- name: Create storage directory (sudo)
-  file:
+- name: Check if system storage directory exists
+  stat:
     path: "{{ iso_dir }}"
-    state: directory
-    mode: '0755'
-  become: true
+  register: system_dir_stat
   when: storage_needs_sudo
+
+- name: Recommend creating system storage directory
+  debug:
+    msg:
+      - "System directory selected but does not exist. Please create it manually:"
+      - "  sudo mkdir -p {{ iso_dir }}"
+      - "  sudo chmod 755 {{ iso_dir }}"
+      - ""
+      - "Then re-run this setup script."
+  when: storage_needs_sudo and not system_dir_stat.stat.exists
+
+- name: Fail if system directory doesn't exist
+  fail:
+    msg: "System storage directory {{ iso_dir }} does not exist. See instructions above."
+  when: storage_needs_sudo and not system_dir_stat.stat.exists
