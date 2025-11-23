@@ -158,6 +158,13 @@
       <target dev="sda" bus="sata"/>
     </disk>
 
+    <!-- CD-ROM for installation media -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <target dev='sdb' bus='sata'/>
+      <readonly/>
+    </disk>
+
 {% for disk in passthrough_disks | default([]) %}
     <!-- Passthrough Disk: {{ disk.description | default('') }} -->
     <disk type='block' device='disk'>
