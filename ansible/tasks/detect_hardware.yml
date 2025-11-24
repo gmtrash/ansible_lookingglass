@@ -30,6 +30,47 @@
       - "Video PCI: {{ detected_gpu_pci }}"
       - "Audio PCI: {{ detected_gpu_audio_pci | default('Not found') }}"
 
+- name: Detect OVMF firmware paths
+  shell: |
+    # Check for 4M (new) or regular (old) OVMF files
+    for code_file in \
+      /usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
+      /usr/share/OVMF/OVMF_CODE.secboot.fd \
+      /usr/share/edk2/ovmf/OVMF_CODE.secboot.fd \
+      /usr/share/qemu/ovmf-x86_64-4m-code.bin \
+      /usr/share/OVMF/OVMF_CODE_4M.fd \
+      /usr/share/OVMF/OVMF_CODE.fd; do
+      if [ -f "$code_file" ]; then
+        echo "code=$code_file"
+        break
+      fi
+    done
+
+    for vars_file in \
+      /usr/share/OVMF/OVMF_VARS_4M.fd \
+      /usr/share/OVMF/OVMF_VARS.fd \
+      /usr/share/edk2/ovmf/OVMF_VARS.fd \
+      /usr/share/qemu/ovmf-x86_64-4m-vars.bin; do
+      if [ -f "$vars_file" ]; then
+        echo "vars=$vars_file"
+        break
+      fi
+    done
+  register: ovmf_detect
+  changed_when: false
+  failed_when: false
+
+- name: Parse OVMF paths
+  set_fact:
+    ovmf_code: "{{ (ovmf_detect.stdout_lines | select('match', '^code=') | first | default('code=/usr/share/OVMF/OVMF_CODE.fd')).split('=')[1] }}"
+    ovmf_vars: "{{ (ovmf_detect.stdout_lines | select('match', '^vars=') | first | default('vars=/usr/share/OVMF/OVMF_VARS.fd')).split('=')[1] }}"
+
+- name: Display detected OVMF paths
+  debug:
+    msg:
+      - "OVMF Code: {{ ovmf_code }}"
+      - "OVMF Vars: {{ ovmf_vars }}"
+
 - name: Detect CPU vendor
   set_fact:
     detected_cpu_vendor: "{{ 'AMD' if 'AuthenticAMD' in ansible_processor[0] else 'Intel' }}"
@@ -42,46 +83,36 @@
       - "Vendor: {{ detected_cpu_vendor }}"
       - "Cores: {{ detected_cpu_cores }}"
 
-- name: Detect BIOS information
-  shell: |
-    echo "vendor=$(dmidecode -s bios-vendor 2>/dev/null || echo 'Unknown')"
-    echo "version=$(dmidecode -s bios-version 2>/dev/null || echo 'Unknown')"
-    echo "date=$(dmidecode -s bios-release-date 2>/dev/null || echo 'Unknown')"
-  register: bios_detect
-  changed_when: false
+- name: Load pre-scanned hardware information
+  include_vars:
+    file: /tmp/vfio_hardware_prescan.yml
+    name: prescan
 
-- name: Detect System information
-  shell: |
-    echo "manufacturer=$(dmidecode -s system-manufacturer 2>/dev/null || echo 'Unknown')"
-    echo "product=$(dmidecode -s system-product-name 2>/dev/null || echo 'Unknown')"
-    echo "version=$(dmidecode -s system-version 2>/dev/null || echo '1.0')"
-    echo "serial=$(dmidecode -s system-serial-number 2>/dev/null || echo 'Default string')"
-    echo "uuid=$(dmidecode -s system-uuid 2>/dev/null || uuidgen)"
-    echo "family=$(dmidecode -s system-family 2>/dev/null || echo 'Desktop')"
-  register: system_detect
-  changed_when: false
-
-- name: Detect Baseboard information
-  shell: |
-    echo "manufacturer=$(dmidecode -s baseboard-manufacturer 2>/dev/null || echo 'Unknown')"
-    echo "product=$(dmidecode -s baseboard-product-name 2>/dev/null || echo 'Unknown')"
-    echo "version=$(dmidecode -s baseboard-version 2>/dev/null || echo 'Rev X.0x')"
-    echo "serial=$(dmidecode -s baseboard-serial-number 2>/dev/null || echo 'Default string')"
-    echo "asset=$(dmidecode -s baseboard-asset-tag 2>/dev/null || echo 'Default string')"
-  register: baseboard_detect
-  changed_when: false
-
-- name: Parse BIOS information
+- name: Parse BIOS information from prescan
   set_fact:
-    bios_info: "{{ dict(bios_detect.stdout_lines | map('split', '=') | list) }}"
+    bios_info:
+      vendor: "{{ prescan.bios_vendor }}"
+      version: "{{ prescan.bios_version }}"
+      date: "{{ prescan.bios_date }}"
 
-- name: Parse System information
+- name: Parse System information from prescan
   set_fact:
-    system_info: "{{ dict(system_detect.stdout_lines | map('split', '=') | list) }}"
+    system_info:
+      manufacturer: "{{ prescan.system_manufacturer }}"
+      product: "{{ prescan.system_product }}"
+      version: "{{ prescan.system_version }}"
+      serial: "{{ prescan.system_serial }}"
+      uuid: "{{ prescan.system_uuid }}"
+      family: "{{ prescan.system_family }}"
 
-- name: Parse Baseboard information
+- name: Parse Baseboard information from prescan
   set_fact:
-    baseboard_info: "{{ dict(baseboard_detect.stdout_lines | map('split', '=') | list) }}"
+    baseboard_info:
+      manufacturer: "{{ prescan.baseboard_manufacturer }}"
+      product: "{{ prescan.baseboard_product }}"
+      version: "{{ prescan.baseboard_version }}"
+      serial: "{{ prescan.baseboard_serial }}"
+      asset: "{{ prescan.baseboard_asset }}"
 
 - name: Save hardware detection results
   copy:
@@ -95,10 +126,14 @@
       cpu_vendor: "{{ detected_cpu_vendor }}"
       cpu_cores: {{ detected_cpu_cores }}
 
+      # OVMF firmware paths
+      ovmf_code_path: "{{ ovmf_code }}"
+      ovmf_vars_path: "{{ ovmf_vars }}"
+
       # SMBIOS Information
       smbios_bios_vendor: "{{ bios_info.vendor }}"
       smbios_bios_version: "{{ bios_info.version }}"
-      smbios_bios_date: "{{ bios_info.date }}"
+      smbios_bios_date: "{{ bios_info.date | trim | regex_replace('/\\d\\d(\\d\\d)$', '/\\1') }}"
 
       smbios_system_manufacturer: "{{ system_info.manufacturer }}"
       smbios_system_product: "{{ system_info.product }}"

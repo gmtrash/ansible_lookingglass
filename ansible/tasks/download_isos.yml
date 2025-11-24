@@ -17,13 +17,15 @@
   when: not virtio_stat.stat.exists and not storage_needs_sudo
   become: false
 
-- name: Download VirtIO drivers (system directory)
-  get_url:
-    url: "https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
-    dest: "{{ virtio_iso }}"
-    mode: '0644'
+- name: Recommend downloading VirtIO drivers (system directory)
+  debug:
+    msg:
+      - "VirtIO ISO not found in system directory. Please download manually:"
+      - "  sudo curl -L -o {{ virtio_iso }} https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
+      - "  sudo chmod 644 {{ virtio_iso }}"
+      - ""
+      - "Or use a user directory by setting VM_STORAGE_DIR to a path you own."
   when: not virtio_stat.stat.exists and storage_needs_sudo
-  become: true
 
 - name: Check if Windows ISO exists
   stat:

@@ -653,6 +653,42 @@ sudo systemctl stop sddm     # KDE
 sudo systemctl stop lightdm  # XFCE
 ```
 
+### NVRAM Permission Denied Error
+
+**Symptoms:** VM fails to start with error:
+```
+Could not open '/path/to/nvram/win11_VARS.fd': Permission denied
+```
+
+**Solution:**
+
+**Quick Fix (Recommended):**
+```bash
+./fix_nvram.sh
+# Or for a different VM name:
+./fix_nvram.sh your-vm-name
+```
+
+**Manual Fix:**
+```bash
+# For session mode (user-level libvirt)
+chmod 600 ~/.local/share/libvirt/qemu/nvram/win11_VARS.fd
+chown $USER ~/.local/share/libvirt/qemu/nvram/win11_VARS.fd
+
+# For system mode (root-level libvirt)
+sudo chmod 644 /var/lib/libvirt/qemu/nvram/win11_VARS.fd
+sudo chown root:root /var/lib/libvirt/qemu/nvram/win11_VARS.fd
+```
+
+**Using Ansible:**
+```bash
+cd ansible
+VM_NAME=win11 ansible-playbook fix_nvram.yml
+```
+
+**Root Cause:**
+This occurs when libvirt creates NVRAM files with incorrect permissions, especially in session mode. The automated setup now includes a fix for this issue.
+
 ### Looking Glass Black Screen
 
 **Symptoms:** Client shows black screen

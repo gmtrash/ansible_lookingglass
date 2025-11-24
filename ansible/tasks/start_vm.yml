@@ -2,10 +2,26 @@
 # Start VM - Launch VM and virt-manager
 
 - name: Start the VM
-  shell: virsh start {{ vm_name }}
+  shell: virsh start {{ vm_name }} 2>&1
   register: vm_start
   failed_when: false
   changed_when: vm_start.rc == 0
+
+- name: Check for NVRAM permission error
+  set_fact:
+    nvram_permission_error: "{{ 'Permission denied' in vm_start.stderr and 'nvram' in vm_start.stderr.lower() }}"
+  when: vm_start.rc != 0
+
+- name: Auto-fix NVRAM permissions if detected
+  include_tasks: fix_nvram_permissions.yml
+  when: vm_start.rc != 0 and nvram_permission_error | default(false)
+
+- name: Retry VM start after permission fix
+  shell: virsh start {{ vm_name }}
+  register: vm_start_retry
+  failed_when: false
+  changed_when: vm_start_retry.rc == 0
+  when: vm_start.rc != 0 and nvram_permission_error | default(false)
 
 - name: Check VM state
   shell: virsh list | grep {{ vm_name }}
@@ -13,9 +29,30 @@
   changed_when: false
   failed_when: false
 
-- name: Display VM start status
+- name: Determine if VM is running
+  set_fact:
+    vm_is_running: "{{ vm_state.rc == 0 and 'running' in vm_state.stdout }}"
+
+- name: Display VM start status (success)
   debug:
-    msg: "{{ '✓ VM started successfully' if vm_start.rc == 0 else '⚠ VM already running or failed to start' }}"
+    msg:
+      - "✓ VM started successfully"
+      - "✓ Connect with: virt-manager"
+      - "✓ Or use: virsh console {{ vm_name }}"
+  when: vm_is_running
+
+- name: Display VM start error with helpful message
+  debug:
+    msg:
+      - "⚠ Failed to start VM"
+      - "Error: {{ vm_start.stderr | default(vm_start.stdout) | default('Unknown error') }}"
+      - ""
+      - "Troubleshooting steps:"
+      - "  1. Check libvirt logs: journalctl -u libvirtd -f"
+      - "  2. Verify VM definition: virsh dumpxml {{ vm_name }}"
+      - "  3. Check IOMMU groups: dmesg | grep -i iommu"
+      - "  4. Ensure GPU is not in use: lsof /dev/nvidia* /dev/dri/*"
+  when: not vm_is_running
 
 - name: Launch virt-manager
   shell: |
@@ -24,4 +61,4 @@
     virt-manager &
   async: 10
   poll: 0
-  when: vm_start.rc == 0 and lookup('env', 'DISPLAY') != ''
+  when: vm_is_running and lookup('env', 'DISPLAY') != ''

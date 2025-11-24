@@ -19,15 +19,14 @@
   register: hooks_dir
   become: false
 
-- name: Create libvirt hooks directory
-  file:
-    path: "{{ item }}"
-    state: directory
-    mode: '0755'
-  loop:
-    - /etc/libvirt/hooks
-    - /var/log/libvirt
-  become: true
+- name: Recommend creating libvirt hooks directory
+  debug:
+    msg:
+      - "Libvirt hooks directory not found. Please create it manually:"
+      - "  sudo mkdir -p /etc/libvirt/hooks /var/log/libvirt"
+      - "  sudo chmod 755 /etc/libvirt/hooks /var/log/libvirt"
+      - ""
+      - "This is required for VFIO GPU binding/unbinding during VM start/stop."
   when: not hooks_dir.stat.exists
 
 - name: Copy VFIO library
@@ -35,7 +34,6 @@
     src: "{{ project_root }}/lib/vfio-common.sh"
     dest: "{{ install_dir }}/lib/vfio-common.sh"
     mode: '0755'
-  when: project_root + '/lib/vfio-common.sh' is file
   become: false
 
 - name: Copy VFIO scripts
@@ -46,7 +44,6 @@
   loop:
     - "{{ project_root }}/scripts/vfio-start"
     - "{{ project_root }}/scripts/vfio-stop"
-  when: item is file
   become: false
 
 - name: Check if libvirt hook exists
@@ -55,26 +52,37 @@
   register: hook_exists
   become: false
 
-- name: Install libvirt hook
+- name: Copy hook template to user directory
   copy:
     src: "{{ project_root }}/hooks/qemu.new"
-    dest: /etc/libvirt/hooks/qemu
+    dest: "{{ install_dir }}/qemu.hook"
     mode: '0755'
-  when: project_root + '/hooks/qemu.new' is file and not hook_exists.stat.exists
-  become: true
+  when: not hook_exists.stat.exists
+  become: false
 
-- name: Configure hook to use install directory
+- name: Configure hook template with install directory
   lineinfile:
-    path: /etc/libvirt/hooks/qemu
+    path: "{{ install_dir }}/qemu.hook"
     regexp: '^PROJECT_ROOT='
     line: 'PROJECT_ROOT="{{ install_dir }}"'
     insertafter: '# Determine project root'
-  when: project_root + '/hooks/qemu.new' is file and not hook_exists.stat.exists
-  become: true
+  when: not hook_exists.stat.exists
+  become: false
+
+- name: Recommend installing libvirt hook
+  debug:
+    msg:
+      - "Libvirt hook needs to be installed. Please run:"
+      - "  sudo cp {{ install_dir }}/qemu.hook /etc/libvirt/hooks/qemu"
+      - "  sudo chmod 755 /etc/libvirt/hooks/qemu"
+      - "  sudo systemctl restart libvirtd"
+      - ""
+      - "This hook handles VFIO GPU binding/unbinding when the VM starts/stops."
+  when: not hook_exists.stat.exists
 
 - name: Display hook status
   debug:
-    msg: "✓ Libvirt hook already installed"
+    msg: "✓ Libvirt hook already installed at /etc/libvirt/hooks/qemu"
   when: hook_exists.stat.exists
 
 - name: Check if libvirt-nosleep service exists
@@ -83,9 +91,9 @@
   register: nosleep_exists
   become: false
 
-- name: Create libvirt-nosleep service
+- name: Create libvirt-nosleep service template
   copy:
-    dest: /etc/systemd/system/libvirt-nosleep@.service
+    dest: "{{ install_dir }}/libvirt-nosleep@.service"
     content: |
       [Unit]
       Description=Preventing sleep while libvirt domain "%i" is running
@@ -94,13 +102,18 @@
       Type=simple
       ExecStart=/usr/bin/systemd-inhibit --what=sleep --why="Libvirt domain %i is running" --who=%U --mode=block sleep infinity
     mode: '0644'
-  become: true
   when: not nosleep_exists.stat.exists
+  become: false
 
-- name: Reload systemd
-  systemd:
-    daemon_reload: true
-  become: true
+- name: Recommend installing nosleep service
+  debug:
+    msg:
+      - "libvirt-nosleep service needs to be installed. Please run:"
+      - "  sudo cp {{ install_dir }}/libvirt-nosleep@.service /etc/systemd/system/"
+      - "  sudo systemctl daemon-reload"
+      - ""
+      - "This service prevents the host from sleeping while the VM is running."
+      - "It's optional but recommended for uninterrupted VM operation."
   when: not nosleep_exists.stat.exists
 
 - name: Display nosleep service status

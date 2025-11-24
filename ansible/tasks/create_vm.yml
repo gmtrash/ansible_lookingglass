@@ -66,11 +66,15 @@
 
     # VM settings
     vm_disk_path: "{{ iso_dir }}/{{ vm_name }}.qcow2"
-    enable_hugepages: true
+    enable_hugepages: false
     looking_glass_size_mb: 256
     use_kvmfr_module: false
     bridge_name: virbr0
     custom_mac_address: "{{ vm_mac_address }}"
+
+    # OVMF firmware paths
+    ovmf_code: "{{ hw.ovmf_code_path }}"
+    ovmf_vars_template: "{{ hw.ovmf_vars_path }}"
 
     # CPU pinning (simple: use first N cores for VM)
     vm_cpu_cores: "0-{{ vm_vcpus - 1 }}"
@@ -144,6 +148,9 @@
   register: vm_list
   changed_when: false
   failed_when: vm_name not in vm_list.stdout
+
+- name: Fix NVRAM permissions to prevent "Permission denied" errors
+  include_tasks: fix_nvram_permissions.yml
 
 - name: Display VM creation status (new VM)
   debug:

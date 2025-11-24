@@ -1,63 +1,84 @@
 ---
 # Prerequisites - Check and install required packages
 
+- name: Check individual package components
+  shell: |
+    # Check for QEMU (try both binary names)
+    if command -v qemu-system-x86_64 &>/dev/null; then
+      echo "qemu: $(command -v qemu-system-x86_64)"
+    elif command -v qemu-system-x86 &>/dev/null; then
+      echo "qemu: $(command -v qemu-system-x86)"
+    else
+      echo "qemu: NOT FOUND"
+    fi
+
+    echo "virsh: $(command -v virsh || echo 'NOT FOUND')"
+    echo "virt-manager: $(command -v virt-manager || echo 'NOT FOUND')"
+
+    # Check for OVMF (multiple possible locations)
+    if [ -f /usr/share/OVMF/OVMF_CODE.fd ]; then
+      echo "OVMF: /usr/share/OVMF/OVMF_CODE.fd"
+    elif [ -f /usr/share/edk2/ovmf/OVMF_CODE.fd ]; then
+      echo "OVMF: /usr/share/edk2/ovmf/OVMF_CODE.fd"
+    elif [ -f /usr/share/ovmf/OVMF.fd ]; then
+      echo "OVMF: /usr/share/ovmf/OVMF.fd"
+    elif [ -f /usr/share/qemu/OVMF_CODE.fd ]; then
+      echo "OVMF: /usr/share/qemu/OVMF_CODE.fd"
+    else
+      echo "OVMF: NOT FOUND"
+    fi
+  register: package_details
+  changed_when: false
+  failed_when: false
+  become: false
+
+- name: Display detailed package check
+  debug:
+    msg: "{{ package_details.stdout_lines }}"
+
 - name: Check if required packages are installed
   shell: |
-    for pkg in qemu-kvm libvirt-daemon-system libvirt-clients virt-manager ovmf; do
-      if ! dpkg -l | grep -q "^ii  $pkg"; then
-        echo "missing"
-        exit 0
-      fi
-    done
-    echo "installed"
+    # Check for key packages - works across distros
+    # Accept either qemu-system-x86_64 OR qemu-system-x86 (Ubuntu uses latter)
+    if (command -v qemu-system-x86_64 &>/dev/null || command -v qemu-system-x86 &>/dev/null) && \
+       command -v virsh &>/dev/null && \
+       command -v virt-manager &>/dev/null && \
+       ([ -f /usr/share/OVMF/OVMF_CODE.fd ] || \
+        [ -f /usr/share/edk2/ovmf/OVMF_CODE.fd ] || \
+        [ -f /usr/share/ovmf/OVMF.fd ] || \
+        [ -f /usr/share/qemu/OVMF_CODE.fd ]); then
+      echo "installed"
+    else
+      echo "missing"
+    fi
   register: packages_check
   changed_when: false
   failed_when: false
   become: false
 
-- name: Install QEMU/KVM and virtualization packages
-  package:
-    name:
-      - qemu-kvm
-      - libvirt-daemon-system
-      - libvirt-clients
-      - virtinst
-      - virt-manager
-      - ovmf
-      - bridge-utils
-      - dnsmasq
-      - dmidecode
-      - pciutils
-      - wget
-      - curl
-    state: present
-  register: package_install
-  failed_when: false
-  become: true
-  when: "'missing' in packages_check.stdout"
-
-- name: Install packages (alternative names for Fedora/RHEL)
-  package:
-    name:
-      - qemu-kvm
-      - libvirt
-      - virt-install
-      - virt-manager
-      - edk2-ovmf
-      - bridge-utils
-      - dnsmasq
-      - dmidecode
-      - pciutils
-      - wget
-      - curl
-    state: present
-  become: true
-  when: package_install is failed and "'missing' in packages_check.stdout"
-
-- name: Display package status
+- name: Display package status (all installed)
   debug:
-    msg: "✓ All required packages already installed"
+    msg:
+      - "✓ All required packages are installed"
   when: "'installed' in packages_check.stdout"
+
+- name: Warn if packages might be missing
+  debug:
+    msg:
+      - "╔════════════════════════════════════════════════════════════╗"
+      - "║  PREREQUISITE WARNING: Some packages may be missing       ║"
+      - "╚════════════════════════════════════════════════════════════╝"
+      - ""
+      - "Package check failed. Review the detection above and verify:"
+      - ""
+      - "Required packages (Ubuntu/Debian):"
+      - "  sudo apt install qemu-kvm libvirt-daemon-system libvirt-clients \\"
+      - "    virt-manager ovmf bridge-utils dnsmasq dmidecode pciutils"
+      - ""
+      - "If all packages are actually installed, this may be a false positive."
+      - "Continuing anyway - VM creation may fail if packages truly missing."
+      - ""
+  when: "'missing' in packages_check.stdout"
 
 - name: Check if IOMMU groups exist (reliable non-root check)
   stat:
@@ -116,18 +137,20 @@
   changed_when: false
   become: false
 
-- name: Ensure libvirtd is running
-  systemd:
-    name: libvirtd
-    state: started
-    enabled: true
-  become: true
-  when: libvirtd_status.rc != 0
-
-- name: Display libvirtd status
+- name: Display libvirtd status (running)
   debug:
-    msg: "✓ libvirtd already running"
+    msg: "✓ libvirtd service is running"
   when: libvirtd_status.rc == 0
+
+- name: Warn if libvirtd not running
+  debug:
+    msg:
+      - "⚠ libvirtd service is not running"
+      - ""
+      - "Start and enable libvirtd:"
+      - "  sudo systemctl start libvirtd"
+      - "  sudo systemctl enable libvirtd"
+  when: libvirtd_status.rc != 0
 
 - name: Check current user's group membership
   shell: groups "{{ ansible_env.USER | default(ansible_user_id) }}"
@@ -135,15 +158,19 @@
   changed_when: false
   become: false
 
-- name: Add current user to libvirt groups
-  user:
-    name: "{{ ansible_env.USER | default(ansible_user_id) }}"
-    groups: libvirt,kvm
-    append: true
-  become: true
-  when: "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
-
-- name: Display group membership status
+- name: Display group membership status (OK)
   debug:
-    msg: "✓ User '{{ ansible_env.USER }}' already in libvirt and kvm groups"
+    msg: "✓ User '{{ ansible_env.USER }}' is in libvirt and kvm groups"
   when: "'libvirt' in user_groups.stdout and 'kvm' in user_groups.stdout"
+
+- name: Recommend adding user to groups
+  debug:
+    msg:
+      - "⚠ User '{{ ansible_env.USER }}' is not in required groups"
+      - ""
+      - "Add yourself to libvirt and kvm groups:"
+      - "  sudo usermod -aG libvirt,kvm {{ ansible_env.USER }}"
+      - "  newgrp libvirt"
+      - ""
+      - "(You may need to log out and back in for group changes to take effect)"
+  when: "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"
