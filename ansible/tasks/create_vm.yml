@@ -26,6 +26,25 @@
     vm_cpu_cores_per_die: "{{ (vm_vcpus | int / 2) | int }}"
     vm_cpu_threads: 2
 
+- name: Ensure parent libvirt directory exists with proper permissions
+  file:
+    path: "{{ iso_dir | dirname }}"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+    group: kvm
+    mode: '0755'
+  become: false
+  when: "'/libvirt' in iso_dir"
+
+- name: Ensure VM disk directory exists
+  file:
+    path: "{{ iso_dir }}"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+    group: kvm
+    mode: '0755'
+  become: false
+
 - name: Create VM disk image
   shell: |
     if [[ ! -f "{{ iso_dir }}/{{ vm_name }}.qcow2" ]]; then
@@ -36,6 +55,14 @@
     fi
   register: disk_create
   changed_when: "'created' in disk_create.stdout"
+
+- name: Set disk file permissions for libvirt access
+  file:
+    path: "{{ iso_dir }}/{{ vm_name }}.qcow2"
+    owner: "{{ ansible_user_id }}"
+    group: kvm
+    mode: '0660'
+  become: false
 
 - name: Generate VM XML from template
   template:
@@ -76,17 +103,14 @@
     ovmf_code: "{{ hw.ovmf_code_path }}"
     ovmf_vars_template: "{{ hw.ovmf_vars_path }}"
 
+    # ISO paths
+    windows_iso: "{{ windows_iso }}"
+    unattend_iso: "{{ unattend_iso | default('') }}"
+    virtio_iso: "{{ virtio_iso }}"
+
     # CPU pinning (simple: use first N cores for VM)
     vm_cpu_cores: "0-{{ vm_vcpus - 1 }}"
     host_cpu_cores: "{{ vm_vcpus }}-{{ hw.cpu_cores - 1 }}"
-
-- name: Add Windows ISO to VM XML
-  lineinfile:
-    path: "{{ install_dir }}/{{ vm_name }}.xml"
-    insertafter: "<disk type='file' device='cdrom'>"
-    line: "      <source file='{{ windows_iso }}'/>"
-    regexp: ".*Win11.*iso.*"
-  when: windows_stat.stat.exists
 
 - name: Check if VM already exists
   shell: virsh list --all --name | grep -q "^{{ vm_name }}$"

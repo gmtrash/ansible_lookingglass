@@ -64,8 +64,33 @@
     msg: "Windows 11 ISO not found at {{ windows_iso }}"
   when: not windows_stat_final.stat.exists and not skip_iso_download
 
+- name: Check if unattend ISO exists
+  stat:
+    path: "{{ unattend_iso }}"
+  register: unattend_stat
+  when: unattend_iso is defined and unattend_iso != ''
+
+- name: Display unattend ISO info
+  debug:
+    msg:
+      - "╔════════════════════════════════════════════════════════════╗"
+      - "║  Unattended Install ISO (Optional)                        ║"
+      - "╚════════════════════════════════════════════════════════════╝"
+      - ""
+      - "Unattend ISO not found at: {{ unattend_iso }}"
+      - ""
+      - "This ISO contains autounattend.xml for automated Windows setup."
+      - "If you have one, place it at: {{ unattend_iso }}"
+      - ""
+      - "Or specify with: export UNATTEND_ISO=/path/to/unattend.iso"
+      - ""
+      - "Without it, Windows installation will require manual interaction."
+      - "Continuing anyway..."
+  when: unattend_iso is defined and unattend_iso != '' and not unattend_stat.stat.exists
+
 - name: Display ISO status
   debug:
     msg:
       - "VirtIO ISO: {{ '✓ Found' if virtio_stat.stat.exists else '✓ Downloaded' }}"
       - "Windows ISO: {{ '✓ Found' if windows_stat.stat.exists else '⚠ Skipped' if skip_iso_download else '✓ Ready' }}"
+      - "Unattend ISO: {{ '✓ Found' if (unattend_stat.stat.exists | default(false)) else '⚠ Optional (not found)' }}"

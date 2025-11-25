@@ -120,3 +120,35 @@
   debug:
     msg: "✓ libvirt-nosleep service already installed"
   when: nosleep_exists.stat.exists
+
+- name: Check if Looking Glass tmpfiles.d config exists
+  stat:
+    path: /etc/tmpfiles.d/10-looking-glass.conf
+  register: lg_tmpfiles_exists
+  become: false
+
+- name: Create Looking Glass tmpfiles.d template
+  copy:
+    dest: "{{ install_dir }}/10-looking-glass.conf"
+    content: |
+      # Type Path                   Mode UID          GID  Age Argument
+      f     /dev/shm/looking-glass 0660 libvirt-qemu kvm  -   -
+    mode: '0644'
+  when: not lg_tmpfiles_exists.stat.exists
+  become: false
+
+- name: Recommend installing Looking Glass tmpfiles.d config
+  debug:
+    msg:
+      - "Looking Glass shared memory permissions need to be configured. Please run:"
+      - "  sudo cp {{ install_dir }}/10-looking-glass.conf /etc/tmpfiles.d/"
+      - "  sudo systemd-tmpfiles --create /etc/tmpfiles.d/10-looking-glass.conf"
+      - ""
+      - "This sets proper permissions on /dev/shm/looking-glass so you can access it without sudo."
+      - "After installing, restart your VM for the new permissions to take effect."
+  when: not lg_tmpfiles_exists.stat.exists
+
+- name: Display Looking Glass tmpfiles.d status
+  debug:
+    msg: "✓ Looking Glass tmpfiles.d config already installed"
+  when: lg_tmpfiles_exists.stat.exists

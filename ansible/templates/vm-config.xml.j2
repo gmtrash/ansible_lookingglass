@@ -155,10 +155,33 @@
       <target dev="sda" bus="sata"/>
     </disk>
 
-    <!-- CD-ROM for installation media -->
+    <!-- CD-ROM 1: Windows Installation ISO -->
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
+{% if windows_iso is defined and windows_iso %}
+      <source file='{{ windows_iso }}'/>
+{% endif %}
       <target dev='sdb' bus='sata'/>
+      <readonly/>
+    </disk>
+
+    <!-- CD-ROM 2: Unattended Install ISO (autounattend.xml) -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+{% if unattend_iso is defined and unattend_iso %}
+      <source file='{{ unattend_iso }}'/>
+{% endif %}
+      <target dev='sdc' bus='sata'/>
+      <readonly/>
+    </disk>
+
+    <!-- CD-ROM 3: VirtIO Drivers ISO -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+{% if virtio_iso is defined and virtio_iso %}
+      <source file='{{ virtio_iso }}'/>
+{% endif %}
+      <target dev='sdd' bus='sata'/>
       <readonly/>
     </disk>
 
@@ -254,9 +277,9 @@
     </sound>
     <audio id='1' type='spice'/>
 
-    <!-- Video - None (GPU passthrough only) -->
+    <!-- Video - VGA for compatibility (switch to 'none' after GPU drivers installed) -->
     <video>
-      <model type='none'/>
+      <model type='vga' vram='16384' heads='1' primary='yes'/>
     </video>
 
     <!-- GPU Passthrough -->
