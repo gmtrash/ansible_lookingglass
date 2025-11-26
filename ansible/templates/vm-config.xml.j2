@@ -226,7 +226,7 @@
       <address type='pci' domain='0x0000' bus='0x04' slot='0x00' function='0x0'/>
     </controller>
 
-    <!-- Network - Use realistic MAC address to avoid VM detection -->
+    <!-- Network 1 - Virtual bridge (NAT) - Use realistic MAC address to avoid VM detection -->
     <interface type='bridge'>
 {% if custom_mac_address is defined %}
       <mac address='{{ custom_mac_address }}'/>
@@ -237,6 +237,15 @@
       <source bridge='{{ bridge_name | default("br0") }}'/>
       <model type='virtio'/>
     </interface>
+
+{% if physical_nic is defined and physical_nic != '' %}
+    <!-- Network 2 - Direct macvtap (bridged to physical NIC for external network access) -->
+    <interface type='direct'>
+      <mac address='{{ macvtap_mac_address | default("52:54:00:a8:b1:c4") }}'/>
+      <source dev='{{ physical_nic }}' mode='bridge'/>
+      <model type='virtio'/>
+    </interface>
+{% endif %}
 
     <!-- SPICE Channel -->
     <channel type='spicevmc'>
