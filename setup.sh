@@ -46,6 +46,8 @@ ${GREEN}Environment Variables:${NC}
   SKIP_ISO_DOWNLOAD     Skip Windows ISO check (default: false)
   SKIP_PACKAGE_INSTALL  Skip package installation (default: false)
   WINDOWS_ISO           Path to Windows 11 ISO
+  UNATTEND_ISO          Path to unattended install ISO (optional)
+  PHYSICAL_NIC          Physical NIC for macvtap (auto-detected if not set)
 
 ${GREEN}Examples:${NC}
   # Standard installation

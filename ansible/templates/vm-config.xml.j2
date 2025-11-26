@@ -155,10 +155,33 @@
       <target dev="sda" bus="sata"/>
     </disk>
 
-    <!-- CD-ROM for installation media -->
+    <!-- CD-ROM 1: Windows Installation ISO -->
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
+{% if windows_iso is defined and windows_iso %}
+      <source file='{{ windows_iso }}'/>
+{% endif %}
       <target dev='sdb' bus='sata'/>
+      <readonly/>
+    </disk>
+
+    <!-- CD-ROM 2: Unattended Install ISO (autounattend.xml) -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+{% if unattend_iso is defined and unattend_iso %}
+      <source file='{{ unattend_iso }}'/>
+{% endif %}
+      <target dev='sdc' bus='sata'/>
+      <readonly/>
+    </disk>
+
+    <!-- CD-ROM 3: VirtIO Drivers ISO -->
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+{% if virtio_iso is defined and virtio_iso %}
+      <source file='{{ virtio_iso }}'/>
+{% endif %}
+      <target dev='sdd' bus='sata'/>
       <readonly/>
     </disk>
 
@@ -203,7 +226,7 @@
       <address type='pci' domain='0x0000' bus='0x04' slot='0x00' function='0x0'/>
     </controller>
 
-    <!-- Network - Use realistic MAC address to avoid VM detection -->
+    <!-- Network 1 - Virtual bridge (NAT) - Use realistic MAC address to avoid VM detection -->
     <interface type='bridge'>
 {% if custom_mac_address is defined %}
       <mac address='{{ custom_mac_address }}'/>
@@ -214,6 +237,15 @@
       <source bridge='{{ bridge_name | default("br0") }}'/>
       <model type='virtio'/>
     </interface>
+
+{% if physical_nic is defined and physical_nic != '' %}
+    <!-- Network 2 - Direct macvtap (bridged to physical NIC for external network access) -->
+    <interface type='direct'>
+      <mac address='{{ macvtap_mac_address | default("52:54:00:a8:b1:c4") }}'/>
+      <source dev='{{ physical_nic }}' mode='bridge'/>
+      <model type='virtio'/>
+    </interface>
+{% endif %}
 
     <!-- SPICE Channel -->
     <channel type='spicevmc'>
@@ -254,9 +286,9 @@
     </sound>
     <audio id='1' type='spice'/>
 
-    <!-- Video - None (GPU passthrough only) -->
+    <!-- Video - VGA for compatibility (switch to 'none' after GPU drivers installed) -->
     <video>
-      <model type='none'/>
+      <model type='vga' vram='16384' heads='1' primary='yes'/>
     </video>
 
     <!-- GPU Passthrough -->

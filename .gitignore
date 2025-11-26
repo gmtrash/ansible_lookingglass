@@ -1,0 +1,40 @@
+# Downloaded artifacts
+looking-glass-*/
+lookingglass_*.tar.gz
+*.iso
+
+# VM disk images
+*.qcow2
+*.img
+
+# Ansible temporary files
+*.retry
+/tmp/
+
+# User-specific configuration
+/config/vfio.conf
+
+# Generated VM XML (stored in user directories)
+~/.local/share/vfio-setup/
+
+# Log files
+*.log
+/var/log/libvirt/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary test files
+/tmp/
+test-*.xml

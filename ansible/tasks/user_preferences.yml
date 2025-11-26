@@ -61,7 +61,8 @@
   set_fact:
     iso_dir: "{{ user_storage_dir | expanduser }}"
     virtio_iso: "{{ user_storage_dir | expanduser }}/virtio-win.iso"
-    windows_iso: "{{ user_storage_dir | expanduser }}/Win11_23H2.iso"
+    windows_iso: "{{ lookup('env', 'WINDOWS_ISO') if lookup('env', 'WINDOWS_ISO') != '' else (user_storage_dir | expanduser) + '/Win11_23H2.iso' }}"
+    unattend_iso: "{{ lookup('env', 'UNATTEND_ISO') if lookup('env', 'UNATTEND_ISO') != '' else (user_storage_dir | expanduser) + '/unattend.iso' }}"
 
 - name: Determine if sudo is needed for storage
   set_fact:

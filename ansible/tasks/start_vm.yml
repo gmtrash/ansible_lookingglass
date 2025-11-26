@@ -12,6 +12,40 @@
     nvram_permission_error: "{{ 'Permission denied' in vm_start.stderr and 'nvram' in vm_start.stderr.lower() }}"
   when: vm_start.rc != 0
 
+- name: Check for storage file access error
+  set_fact:
+    storage_permission_error: "{{ 'Cannot access storage file' in vm_start.stderr or ('Permission denied' in vm_start.stderr and 'qcow2' in vm_start.stderr) }}"
+  when: vm_start.rc != 0
+
+- name: Display storage permission fix instructions
+  debug:
+    msg:
+      - "╔════════════════════════════════════════════════════════════╗"
+      - "║  STORAGE FILE PERMISSION ERROR                            ║"
+      - "╚════════════════════════════════════════════════════════════╝"
+      - ""
+      - "libvirt-qemu cannot access your disk files in ~/libvirt/images/"
+      - ""
+      - "Quick Fix Option 1: Set proper group ownership (RECOMMENDED)"
+      - "  Run these commands to fix permissions:"
+      - "  cd ~/libvirt"
+      - "  chgrp -R kvm ."
+      - "  chmod -R g+w images/"
+      - "  chmod g+x ."
+      - ""
+      - "Quick Fix Option 2: Use system storage location"
+      - "  Move disk to system location:"
+      - "  sudo mkdir -p /var/lib/libvirt/images"
+      - "  sudo mv ~/libvirt/images/*.qcow2 /var/lib/libvirt/images/"
+      - "  Update VM XML to point to new location"
+      - ""
+      - "Quick Fix Option 3: Set ACLs (most flexible)"
+      - "  sudo setfacl -m u:libvirt-qemu:rx ~/libvirt"
+      - "  sudo setfacl -m u:libvirt-qemu:rwx ~/libvirt/images"
+      - ""
+      - "After applying fix, retry: virsh start {{ vm_name }}"
+  when: vm_start.rc != 0 and storage_permission_error | default(false)
+
 - name: Auto-fix NVRAM permissions if detected
   include_tasks: fix_nvram_permissions.yml
   when: vm_start.rc != 0 and nvram_permission_error | default(false)
