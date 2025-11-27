@@ -1,0 +1,25 @@
+---
+# User Group Verification - Check if user is in required groups
+
+- name: Check current user's group membership
+  shell: groups "{{ ansible_env.USER | default(ansible_user_id) }}"
+  register: user_groups
+  changed_when: false
+  become: false
+
+- name: Display group membership status (OK)
+  debug:
+    msg: "✓ User '{{ ansible_env.USER }}' is in libvirt and kvm groups"
+  when: "'libvirt' in user_groups.stdout and 'kvm' in user_groups.stdout"
+
+- name: Recommend adding user to groups
+  debug:
+    msg:
+      - "⚠ User '{{ ansible_env.USER }}' is not in required groups"
+      - ""
+      - "Add yourself to libvirt and kvm groups:"
+      - "  sudo usermod -aG libvirt,kvm {{ ansible_env.USER }}"
+      - "  newgrp libvirt"
+      - ""
+      - "(You may need to log out and back in for group changes to take effect)"
+  when: "'libvirt' not in user_groups.stdout or 'kvm' not in user_groups.stdout"

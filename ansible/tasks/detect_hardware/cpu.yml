@@ -1,0 +1,14 @@
+---
+# CPU Detection - Detect CPU vendor and core count
+
+- name: Detect CPU vendor
+  set_fact:
+    detected_cpu_vendor: "{{ 'AMD' if 'AuthenticAMD' in ansible_processor[0] else 'Intel' }}"
+    detected_cpu_cores: "{{ ansible_processor_vcpus }}"
+
+- name: Display detected CPU
+  debug:
+    msg:
+      - "CPU: {{ ansible_processor[0] }}"
+      - "Vendor: {{ detected_cpu_vendor }}"
+      - "Cores: {{ detected_cpu_cores }}"

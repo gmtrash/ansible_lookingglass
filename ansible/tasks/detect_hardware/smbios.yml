@@ -1,0 +1,33 @@
+---
+# SMBIOS Detection - Load and parse BIOS, System, and Baseboard information
+
+- name: Load pre-scanned hardware information
+  include_vars:
+    file: /tmp/vfio_hardware_prescan.yml
+    name: prescan
+
+- name: Parse BIOS information from prescan
+  set_fact:
+    bios_info:
+      vendor: "{{ prescan.bios_vendor }}"
+      version: "{{ prescan.bios_version }}"
+      date: "{{ prescan.bios_date }}"
+
+- name: Parse System information from prescan
+  set_fact:
+    system_info:
+      manufacturer: "{{ prescan.system_manufacturer }}"
+      product: "{{ prescan.system_product }}"
+      version: "{{ prescan.system_version }}"
+      serial: "{{ prescan.system_serial }}"
+      uuid: "{{ prescan.system_uuid }}"
+      family: "{{ prescan.system_family }}"
+
+- name: Parse Baseboard information from prescan
+  set_fact:
+    baseboard_info:
+      manufacturer: "{{ prescan.baseboard_manufacturer }}"
+      product: "{{ prescan.baseboard_product }}"
+      version: "{{ prescan.baseboard_version }}"
+      serial: "{{ prescan.baseboard_serial }}"
+      asset: "{{ prescan.baseboard_asset }}"

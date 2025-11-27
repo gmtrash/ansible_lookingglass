@@ -1,0 +1,31 @@
+---
+# GPU Detection - Detect GPU PCI address and audio device
+
+- name: Detect GPU information
+  shell: lspci -nn | grep -iE "vga|3d controller" | head -1
+  register: gpu_detect
+  changed_when: false
+  failed_when: gpu_detect.stdout == ""
+
+- name: Parse GPU PCI address
+  set_fact:
+    detected_gpu_pci: "{{ gpu_detect.stdout.split()[0] }}"
+    detected_gpu_vendor: "{{ 'NVIDIA' if 'nvidia' in gpu_detect.stdout.lower() else 'AMD' }}"
+
+- name: Check for GPU audio device
+  shell: lspci -s {{ detected_gpu_pci[:-1] }}1
+  register: gpu_audio_check
+  changed_when: false
+  failed_when: false
+
+- name: Set GPU audio PCI if exists
+  set_fact:
+    detected_gpu_audio_pci: "{{ detected_gpu_pci[:-1] }}1"
+  when: gpu_audio_check.rc == 0
+
+- name: Display detected GPU
+  debug:
+    msg:
+      - "GPU Detected: {{ detected_gpu_vendor }}"
+      - "Video PCI: {{ detected_gpu_pci }}"
+      - "Audio PCI: {{ detected_gpu_audio_pci | default('Not found') }}"

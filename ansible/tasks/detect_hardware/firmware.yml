@@ -1,0 +1,43 @@
+---
+# Firmware Detection - Detect OVMF firmware paths
+
+- name: Detect OVMF firmware paths
+  shell: |
+    # Check for 4M (new) or regular (old) OVMF files
+    for code_file in \
+      /usr/share/OVMF/OVMF_CODE_4M.secboot.fd \
+      /usr/share/OVMF/OVMF_CODE.secboot.fd \
+      /usr/share/edk2/ovmf/OVMF_CODE.secboot.fd \
+      /usr/share/qemu/ovmf-x86_64-4m-code.bin \
+      /usr/share/OVMF/OVMF_CODE_4M.fd \
+      /usr/share/OVMF/OVMF_CODE.fd; do
+      if [ -f "$code_file" ]; then
+        echo "code=$code_file"
+        break
+      fi
+    done
+
+    for vars_file in \
+      /usr/share/OVMF/OVMF_VARS_4M.fd \
+      /usr/share/OVMF/OVMF_VARS.fd \
+      /usr/share/edk2/ovmf/OVMF_VARS.fd \
+      /usr/share/qemu/ovmf-x86_64-4m-vars.bin; do
+      if [ -f "$vars_file" ]; then
+        echo "vars=$vars_file"
+        break
+      fi
+    done
+  register: ovmf_detect
+  changed_when: false
+  failed_when: false
+
+- name: Parse OVMF paths
+  set_fact:
+    ovmf_code: "{{ (ovmf_detect.stdout_lines | select('match', '^code=') | first | default('code=/usr/share/OVMF/OVMF_CODE.fd')).split('=')[1] }}"
+    ovmf_vars: "{{ (ovmf_detect.stdout_lines | select('match', '^vars=') | first | default('vars=/usr/share/OVMF/OVMF_VARS.fd')).split('=')[1] }}"
+
+- name: Display detected OVMF paths
+  debug:
+    msg:
+      - "OVMF Code: {{ ovmf_code }}"
+      - "OVMF Vars: {{ ovmf_vars }}"

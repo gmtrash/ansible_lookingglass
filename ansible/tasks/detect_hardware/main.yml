@@ -1,0 +1,57 @@
+---
+# Hardware Detection - Orchestrator for hardware detection
+#
+# This file coordinates hardware detection by calling modular sub-tasks:
+#   1. GPU detection (PCI addresses, vendor)
+#   2. Firmware detection (OVMF paths)
+#   3. CPU detection (vendor, core count)
+#   4. SMBIOS detection (BIOS, System, Baseboard info)
+#
+# Results are saved to /tmp/vfio_detected_hardware.yml for use by VM creation
+
+- name: Detect GPU hardware
+  include_tasks: gpu.yml
+
+- name: Detect OVMF firmware
+  include_tasks: firmware.yml
+
+- name: Detect CPU information
+  include_tasks: cpu.yml
+
+- name: Detect SMBIOS information
+  include_tasks: smbios.yml
+
+- name: Save hardware detection results
+  copy:
+    dest: "/tmp/vfio_detected_hardware.yml"
+    content: |
+      # Auto-detected hardware configuration
+      # Generated: {{ ansible_date_time.iso8601 }}
+
+      gpu_pci_video: "0000:{{ detected_gpu_pci }}"
+      gpu_pci_audio: "0000:{{ detected_gpu_audio_pci | default('none') }}"
+      cpu_vendor: "{{ detected_cpu_vendor }}"
+      cpu_cores: {{ detected_cpu_cores }}
+
+      # OVMF firmware paths
+      ovmf_code_path: "{{ ovmf_code }}"
+      ovmf_vars_path: "{{ ovmf_vars }}"
+
+      # SMBIOS Information
+      smbios_bios_vendor: "{{ bios_info.vendor }}"
+      smbios_bios_version: "{{ bios_info.version }}"
+      smbios_bios_date: "{{ bios_info.date | trim | regex_replace('/\\d\\d(\\d\\d)$', '/\\1') }}"
+
+      smbios_system_manufacturer: "{{ system_info.manufacturer }}"
+      smbios_system_product: "{{ system_info.product }}"
+      smbios_system_version: "{{ system_info.version }}"
+      smbios_system_serial: "{{ system_info.serial }}"
+      smbios_system_uuid: "{{ system_info.uuid }}"
+      smbios_system_family: "{{ system_info.family }}"
+
+      smbios_baseboard_manufacturer: "{{ baseboard_info.manufacturer }}"
+      smbios_baseboard_product: "{{ baseboard_info.product }}"
+      smbios_baseboard_version: "{{ baseboard_info.version }}"
+      smbios_baseboard_serial: "{{ baseboard_info.serial }}"
+      smbios_baseboard_asset: "{{ baseboard_info.asset }}"
+    mode: '0644'

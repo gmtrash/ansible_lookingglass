@@ -1,0 +1,22 @@
+---
+# Prerequisites - Orchestrator for prerequisite checks
+#
+# This file coordinates prerequisite verification by calling modular sub-tasks:
+#   1. Package verification (QEMU, libvirt, OVMF, virt-manager)
+#   2. IOMMU verification (kernel parameters, IOMMU groups)
+#   3. Service verification (libvirtd status)
+#   4. User group verification (libvirt, kvm groups)
+#
+# All checks are non-invasive - they detect and warn, but don't modify the system
+
+- name: Check required packages
+  include_tasks: packages.yml
+
+- name: Verify IOMMU is enabled
+  include_tasks: iommu.yml
+
+- name: Check libvirtd service
+  include_tasks: services.yml
+
+- name: Verify user group membership
+  include_tasks: user_groups.yml

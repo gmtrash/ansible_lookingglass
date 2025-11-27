@@ -1,0 +1,52 @@
+---
+# IOMMU Verification - Check if IOMMU is enabled
+
+- name: Check if IOMMU groups exist (reliable non-root check)
+  stat:
+    path: /sys/kernel/iommu_groups
+  register: iommu_groups_dir
+  become: false
+
+- name: Count IOMMU groups
+  shell: "ls -1 /sys/kernel/iommu_groups/ 2>/dev/null | wc -l"
+  register: iommu_group_count
+  changed_when: false
+  failed_when: false
+  become: false
+
+- name: Check kernel command line for IOMMU parameters
+  shell: "cat /proc/cmdline"
+  register: kernel_cmdline
+  changed_when: false
+  become: false
+
+- name: Determine IOMMU status
+  set_fact:
+    iommu_enabled: "{{ iommu_groups_dir.stat.exists and (iommu_group_count.stdout | int > 0) }}"
+    iommu_in_cmdline: "{{ 'intel_iommu=on' in kernel_cmdline.stdout or 'amd_iommu=on' in kernel_cmdline.stdout }}"
+
+- name: Display IOMMU status
+  debug:
+    msg:
+      - "IOMMU Groups: {{ iommu_group_count.stdout | default('0') }} found"
+      - "IOMMU Status: {{ 'ENABLED ✓' if iommu_enabled else 'NOT DETECTED ✗' }}"
+      - "Kernel cmdline: {{ 'IOMMU parameters present ✓' if iommu_in_cmdline else 'No IOMMU parameters found' }}"
+
+- name: Warn if IOMMU not detected
+  pause:
+    prompt: |
+      WARNING: IOMMU does not appear to be enabled!
+
+      IOMMU groups found: {{ iommu_group_count.stdout | default('0') }}
+      Kernel parameters: {{ 'Found' if iommu_in_cmdline else 'Missing' }}
+
+      To enable IOMMU:
+      1. Edit /etc/default/grub
+      2. Add to GRUB_CMDLINE_LINUX_DEFAULT:
+         - For Intel: intel_iommu=on iommu=pt
+         - For AMD: amd_iommu=on iommu=pt
+      3. Run: sudo update-grub (or grub2-mkconfig -o /boot/grub2/grub.cfg)
+      4. Reboot
+
+      Press Ctrl+C to abort, or Enter to continue anyway...
+  when: not iommu_enabled

@@ -1,0 +1,24 @@
+---
+# Service Verification - Check if required services are running
+
+- name: Check if libvirtd is running
+  shell: systemctl is-active libvirtd
+  register: libvirtd_status
+  failed_when: false
+  changed_when: false
+  become: false
+
+- name: Display libvirtd status (running)
+  debug:
+    msg: "✓ libvirtd service is running"
+  when: libvirtd_status.rc == 0
+
+- name: Warn if libvirtd not running
+  debug:
+    msg:
+      - "⚠ libvirtd service is not running"
+      - ""
+      - "Start and enable libvirtd:"
+      - "  sudo systemctl start libvirtd"
+      - "  sudo systemctl enable libvirtd"
+  when: libvirtd_status.rc != 0

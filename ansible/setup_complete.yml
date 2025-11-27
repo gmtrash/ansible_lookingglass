@@ -34,13 +34,13 @@
       debug:
         msg: "Checking system prerequisites and installing packages..."
 
-    - import_tasks: tasks/prerequisites.yml
+    - import_tasks: tasks/prerequisites/main.yml
 
     - name: "=== PHASE 2: Hardware Detection ==="
       debug:
         msg: "Detecting GPU, CPU, and SMBIOS information..."
 
-    - import_tasks: tasks/detect_hardware.yml
+    - import_tasks: tasks/detect_hardware/main.yml
 
     - name: "=== PHASE 3: Download ISOs ==="
       debug:
