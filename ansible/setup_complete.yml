@@ -64,7 +64,7 @@
       debug:
         msg: "Generating VM configuration with all evasion techniques..."
 
-    - import_tasks: tasks/create_vm.yml
+    - import_tasks: tasks/create_vm/main.yml
 
     - name: "=== PHASE 7: VM Startup ==="
       debug:

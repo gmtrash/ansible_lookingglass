@@ -1,5 +1,5 @@
 ---
-# Create VM - Generate XML and define in libvirt
+# VM Definition - Generate XML, define in libvirt, and verify
 
 - name: Load detected hardware configuration
   include_vars:
@@ -9,89 +9,6 @@
 - name: Set hyperv vendor_id based on CPU
   set_fact:
     hyperv_vendor_id: "{{ 'AuthenticAMD' if hw.cpu_vendor == 'AMD' else 'GenuineIntel' }}"
-
-- name: Generate random MAC address (realistic prefix)
-  shell: printf "00:1E:C9:%02X:%02X:%02X" $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
-  register: mac_gen
-  changed_when: false
-
-- name: Set VM MAC address
-  set_fact:
-    vm_mac_address: "{{ mac_gen.stdout }}"
-
-- name: Detect physical network interface for macvtap
-  shell: |
-    # Find the primary physical interface (not loopback, not virtual)
-    # Prioritize interfaces with actual IP addresses
-    ip -o -4 addr show | grep -v "127.0.0.1" | grep -v "virbr" | grep -v "docker" | grep -v "veth" | head -1 | awk '{print $2}'
-  register: physical_nic_detect
-  changed_when: false
-  failed_when: false
-
-- name: Generate macvtap MAC address (different from VM bridge MAC)
-  shell: printf "52:54:00:%02X:%02X:%02X" $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
-  register: macvtap_mac_gen
-  changed_when: false
-  when: physical_nic_detect.stdout != ''
-
-- name: Set macvtap network variables
-  set_fact:
-    physical_nic: "{{ lookup('env', 'PHYSICAL_NIC') if lookup('env', 'PHYSICAL_NIC') != '' else physical_nic_detect.stdout | trim }}"
-    macvtap_mac_address: "{{ macvtap_mac_gen.stdout | default('52:54:00:a8:b1:c4') }}"
-  when: physical_nic_detect.stdout != '' or lookup('env', 'PHYSICAL_NIC') != ''
-
-- name: Display macvtap configuration
-  debug:
-    msg:
-      - "Macvtap network interface detected: {{ physical_nic | default('none') }}"
-      - "Macvtap MAC address: {{ macvtap_mac_address | default('disabled') }}"
-      - "This provides direct bridge access to your physical network"
-  when: physical_nic is defined and physical_nic != ''
-
-- name: Calculate CPU topology
-  set_fact:
-    vm_cpu_sockets: 1
-    vm_cpu_dies: 1
-    vm_cpu_cores_per_die: "{{ (vm_vcpus | int / 2) | int }}"
-    vm_cpu_threads: 2
-
-- name: Ensure parent libvirt directory exists with proper permissions
-  file:
-    path: "{{ iso_dir | dirname }}"
-    state: directory
-    owner: "{{ ansible_user_id }}"
-    group: kvm
-    mode: '0755'
-  become: false
-  when: "'/libvirt' in iso_dir"
-
-- name: Ensure VM disk directory exists
-  file:
-    path: "{{ iso_dir }}"
-    state: directory
-    owner: "{{ ansible_user_id }}"
-    group: kvm
-    mode: '0755'
-  become: false
-
-- name: Create VM disk image
-  shell: |
-    if [[ ! -f "{{ iso_dir }}/{{ vm_name }}.qcow2" ]]; then
-      qemu-img create -f qcow2 "{{ iso_dir }}/{{ vm_name }}.qcow2" 120G
-      echo "created"
-    else
-      echo "exists"
-    fi
-  register: disk_create
-  changed_when: "'created' in disk_create.stdout"
-
-- name: Set disk file permissions for libvirt access
-  file:
-    path: "{{ iso_dir }}/{{ vm_name }}.qcow2"
-    owner: "{{ ansible_user_id }}"
-    group: kvm
-    mode: '0660'
-  become: false
 
 - name: Generate VM XML from template
   template:
@@ -207,7 +124,7 @@
   failed_when: vm_name not in vm_list.stdout
 
 - name: Fix NVRAM permissions to prevent "Permission denied" errors
-  include_tasks: fix_nvram_permissions.yml
+  include_tasks: ../fix_nvram_permissions.yml
 
 - name: Display VM creation status (new VM)
   debug:

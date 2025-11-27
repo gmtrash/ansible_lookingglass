@@ -1,0 +1,16 @@
+---
+# Create VM - Orchestrator for VM creation process
+#
+# This file coordinates the VM creation workflow by calling modular sub-tasks:
+#   1. Network configuration (MAC addresses, interface detection)
+#   2. Storage setup (directories, disk creation, permissions)
+#   3. VM definition (XML generation, libvirt definition, verification)
+
+- name: Configure VM network settings
+  include_tasks: network.yml
+
+- name: Setup VM storage
+  include_tasks: storage.yml
+
+- name: Define VM in libvirt
+  include_tasks: definition.yml

@@ -1,0 +1,40 @@
+---
+# Network Configuration - MAC addresses and interface detection
+
+- name: Generate random MAC address (realistic prefix)
+  shell: printf "00:1E:C9:%02X:%02X:%02X" $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
+  register: mac_gen
+  changed_when: false
+
+- name: Set VM MAC address
+  set_fact:
+    vm_mac_address: "{{ mac_gen.stdout }}"
+
+- name: Detect physical network interface for macvtap
+  shell: |
+    # Find the primary physical interface (not loopback, not virtual)
+    # Prioritize interfaces with actual IP addresses
+    ip -o -4 addr show | grep -v "127.0.0.1" | grep -v "virbr" | grep -v "docker" | grep -v "veth" | head -1 | awk '{print $2}'
+  register: physical_nic_detect
+  changed_when: false
+  failed_when: false
+
+- name: Generate macvtap MAC address (different from VM bridge MAC)
+  shell: printf "52:54:00:%02X:%02X:%02X" $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256))
+  register: macvtap_mac_gen
+  changed_when: false
+  when: physical_nic_detect.stdout != ''
+
+- name: Set macvtap network variables
+  set_fact:
+    physical_nic: "{{ lookup('env', 'PHYSICAL_NIC') if lookup('env', 'PHYSICAL_NIC') != '' else physical_nic_detect.stdout | trim }}"
+    macvtap_mac_address: "{{ macvtap_mac_gen.stdout | default('52:54:00:a8:b1:c4') }}"
+  when: physical_nic_detect.stdout != '' or lookup('env', 'PHYSICAL_NIC') != ''
+
+- name: Display macvtap configuration
+  debug:
+    msg:
+      - "Macvtap network interface detected: {{ physical_nic | default('none') }}"
+      - "Macvtap MAC address: {{ macvtap_mac_address | default('disabled') }}"
+      - "This provides direct bridge access to your physical network"
+  when: physical_nic is defined and physical_nic != ''

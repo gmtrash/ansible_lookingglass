@@ -1,0 +1,47 @@
+---
+# Storage Setup - Directories, disk creation, and permissions
+
+- name: Calculate CPU topology
+  set_fact:
+    vm_cpu_sockets: 1
+    vm_cpu_dies: 1
+    vm_cpu_cores_per_die: "{{ (vm_vcpus | int / 2) | int }}"
+    vm_cpu_threads: 2
+
+- name: Ensure parent libvirt directory exists with proper permissions
+  file:
+    path: "{{ iso_dir | dirname }}"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+    group: kvm
+    mode: '0755'
+  become: false
+  when: "'/libvirt' in iso_dir"
+
+- name: Ensure VM disk directory exists
+  file:
+    path: "{{ iso_dir }}"
+    state: directory
+    owner: "{{ ansible_user_id }}"
+    group: kvm
+    mode: '0755'
+  become: false
+
+- name: Create VM disk image
+  shell: |
+    if [[ ! -f "{{ iso_dir }}/{{ vm_name }}.qcow2" ]]; then
+      qemu-img create -f qcow2 "{{ iso_dir }}/{{ vm_name }}.qcow2" 120G
+      echo "created"
+    else
+      echo "exists"
+    fi
+  register: disk_create
+  changed_when: "'created' in disk_create.stdout"
+
+- name: Set disk file permissions for libvirt access
+  file:
+    path: "{{ iso_dir }}/{{ vm_name }}.qcow2"
+    owner: "{{ ansible_user_id }}"
+    group: kvm
+    mode: '0660'
+  become: false
