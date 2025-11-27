@@ -60,13 +60,16 @@ This repository provides a complete, modular solution for setting up a Windows 1
 - ✅ **Hugepages** - Reduced memory latency
 - ✅ **SPICE Integration** - Audio, USB, and clipboard sharing
 - ✅ **Evdev Input** - Direct keyboard/mouse passthrough
+- ✅ **Dual Network Interfaces** - Virtual NAT + direct physical NIC access (macvtap)
 
 ### Automation Features
 
-- ✅ **Ansible Deployment** - One-command setup
+- ✅ **Ansible Deployment** - One-command setup with modular task organization
 - ✅ **Libvirt Hooks** - Automatic display manager management
 - ✅ **Modular Scripts** - Reusable library functions
 - ✅ **Configuration Templates** - Easy customization
+- ✅ **Auto Hardware Detection** - GPU, CPU, SMBIOS auto-discovery
+- ✅ **Auto Network Configuration** - Automatic physical NIC detection for macvtap
 
 ### Supported Configurations
 
@@ -176,6 +179,7 @@ SKIP_ISO_DOWNLOAD=true WINDOWS_ISO=/path/to/win11.iso ./setup.sh
 | `AUTO_START_VM` | `true` | Start VM after creation |
 | `SKIP_ISO_DOWNLOAD` | `false` | Skip Windows ISO download check |
 | `WINDOWS_ISO` | Auto-detected | Path to Windows 11 ISO file |
+| `PHYSICAL_NIC` | Auto-detected | Physical network interface for macvtap (e.g., `enp7s0`) |
 
 ---
 
@@ -380,13 +384,27 @@ Install Windows 11 in the VM using the passed-through GPU:
    sudo make install
    ```
 
-2. **Configure permissions** (if using libvirt shmem)
+2. **Configure permissions** (for shared memory access)
+
+   The automated setup creates a tmpfiles.d configuration for you. To install it manually:
+
    ```bash
+   # Install tmpfiles.d config (created by setup in ~/.local/share/vfio-setup/)
+   sudo cp ~/.local/share/vfio-setup/10-looking-glass.conf /etc/tmpfiles.d/
+
+   # Create the shared memory file with correct permissions
+   sudo systemd-tmpfiles --create /etc/tmpfiles.d/10-looking-glass.conf
+
    # Add yourself to kvm group
    sudo usermod -a -G kvm $USER
 
    # Log out and back in for group to take effect
    ```
+
+   **What this does:**
+   - Sets `/dev/shm/looking-glass` permissions to 0660 (read/write for owner and group)
+   - Sets ownership to `libvirt-qemu:kvm`
+   - Allows users in the `kvm` group to access Looking Glass without sudo
 
 3. **Create Looking Glass client config** (optional)
 
@@ -702,6 +720,27 @@ This occurs when libvirt creates NVRAM files with incorrect permissions, especia
    ```
 4. Check Windows Device Manager for IVSHMEM device
 
+### Looking Glass Permission Denied
+
+**Symptoms:** `looking-glass-client` fails with "Permission denied" on `/dev/shm/looking-glass`
+
+**Solution:**
+```bash
+# Install the tmpfiles.d configuration (automated setup creates this)
+sudo cp ~/.local/share/vfio-setup/10-looking-glass.conf /etc/tmpfiles.d/
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/10-looking-glass.conf
+
+# Ensure you're in the kvm group
+sudo usermod -a -G kvm $USER
+
+# Restart the VM to recreate the shared memory file
+virsh shutdown win11
+virsh start win11
+
+# Try Looking Glass client again
+looking-glass-client
+```
+
 ### Poor Performance
 
 **Symptoms:** Low FPS, stuttering
@@ -793,7 +832,22 @@ Give VM the V-Cache CCX cores for best gaming performance.
 ```
 Pin P-cores (performance) to VM, E-cores to host.
 
-### Network Bridge Setup
+### Network Configuration
+
+The automated setup creates **dual network interfaces** for your VM:
+
+1. **Virtual Bridge (NAT)** - Default virtualized network
+2. **Macvtap (Direct Physical)** - Direct access to your physical NIC for LAN connectivity
+
+**Automatic Detection:**
+The setup auto-detects your primary physical network interface. You can override:
+```bash
+PHYSICAL_NIC=enp7s0 ./setup.sh
+```
+
+**Manual Network Bridge Setup:**
+
+If you need custom bridge configuration:
 
 **Using NetworkManager:**
 ```bash
@@ -814,38 +868,85 @@ dhclient br0
 
 ```
 .
-├── ansible/                    # Automated deployment
-│   ├── inventory.yml          # Host configuration
-│   ├── playbook.yml           # Main playbook
-│   └── templates/             # Jinja2 templates
-│       ├── vfio.conf.j2       # Config template
-│       └── vm-config.xml.j2   # VM XML template
+├── ansible/                          # Automated deployment (modular)
+│   ├── setup_complete.yml           # Main orchestrator playbook
+│   ├── fix_nvram.yml                # NVRAM permission fix
+│   ├── prescan_hardware.yml         # Pre-sudo hardware scan
+│   │
+│   ├── tasks/                       # Modular task organization
+│   │   ├── prerequisites/           # System prerequisite checks
+│   │   │   ├── main.yml            # Orchestrator
+│   │   │   ├── packages.yml        # QEMU/libvirt package verification
+│   │   │   ├── iommu.yml           # IOMMU group detection
+│   │   │   ├── services.yml        # libvirtd service check
+│   │   │   └── user_groups.yml     # Group membership verification
+│   │   │
+│   │   ├── detect_hardware/         # Hardware auto-detection
+│   │   │   ├── main.yml            # Orchestrator + saves results
+│   │   │   ├── gpu.yml             # GPU PCI address detection
+│   │   │   ├── firmware.yml        # OVMF firmware path detection
+│   │   │   ├── cpu.yml             # CPU vendor/core count
+│   │   │   └── smbios.yml          # BIOS/System/Baseboard info
+│   │   │
+│   │   ├── create_vm/               # VM creation and configuration
+│   │   │   ├── main.yml            # Orchestrator
+│   │   │   ├── network.yml         # MAC generation, macvtap setup
+│   │   │   ├── storage.yml         # Disk image creation
+│   │   │   └── definition.yml      # XML generation, VM definition
+│   │   │
+│   │   ├── user_preferences.yml    # Storage location selection
+│   │   ├── download_isos.yml       # VirtIO drivers, Windows ISO
+│   │   ├── configure_host.yml      # Hugepages recommendations
+│   │   ├── install_vfio.yml        # VFIO hooks/scripts installation
+│   │   ├── start_vm.yml            # VM startup and virt-manager
+│   │   └── show_instructions.yml   # Post-setup instructions
+│   │
+│   └── templates/                   # Jinja2 templates
+│       ├── vm-config.xml.j2        # VM XML with anti-detection
+│       ├── qemu.hook.j2            # Libvirt hook template
+│       ├── vfio-start.j2           # GPU switching script
+│       ├── vfio-stop.j2            # GPU restore script
+│       └── vfio-common.sh.j2       # Shared library functions
 │
-├── config/                     # Configuration files
-│   └── vfio.conf.example      # Example configuration
+├── lib/                             # Shared libraries
+│   └── vfio-common.sh              # Common shell functions
 │
-├── hooks/                      # Libvirt hooks
-│   ├── qemu.new               # Modern hook script
-│   ├── qemu                   # Legacy hook
-│   ├── vfio-startup.sh        # Legacy startup
-│   └── vfio-teardown.sh       # Legacy teardown
+├── scripts/                         # Helper scripts
+│   ├── vfio-start                  # GPU switching (start VM)
+│   └── vfio-stop                   # GPU restore (stop VM)
 │
-├── lib/                        # Shared libraries
-│   └── vfio-common.sh         # Common functions
+├── archive/                         # Deprecated/obsolete files
+│   ├── ansible/                    # Old monolithic task files
+│   └── *.sh                        # Legacy scripts
 │
-├── scripts/                    # Helper scripts
-│   ├── vfio-start             # Modern startup script
-│   └── vfio-stop              # Modern teardown script
-│
-├── *.xml                       # VM XML examples
-│   ├── win11-working-lookingglass-12700kf.xml  # Best practices
+├── *.xml                            # VM XML reference examples
+│   ├── win11-working-lookingglass-12700kf.xml  # Intel best practices
 │   ├── win11-working-lookingglass-7950x3d.xml  # AMD 3D V-Cache
 │   └── ...
 │
-├── find_iommu.sh              # IOMMU group checker
-├── create_bridges.sh          # Network bridge setup
-└── README.md                  # This file
+├── setup.sh                         # Main setup script (wrapper)
+├── fix_nvram.sh                     # NVRAM permission quick fix
+├── .gitignore                       # Git ignore rules
+└── README.md                        # This file
 ```
+
+### Key Design Decisions
+
+**Modular Ansible Tasks:**
+- Each task file has a single, clear purpose (20-80 lines)
+- Orchestrator pattern with `main.yml` coordinators
+- Easy to debug, extend, and maintain
+- No monolithic 200+ line files
+
+**Minimal Sudo Philosophy:**
+- Sudo only used for genuine requirements (dmidecode, package install)
+- User directories for all generated files (`~/.local/share/vfio-setup/`)
+- System files created as templates, manually installed by user
+
+**Archive Directory:**
+- Old/deprecated files moved to `archive/` instead of deletion
+- Preserves git history and allows rollback if needed
+- Clean separation between active and legacy code
 
 ## References
 
